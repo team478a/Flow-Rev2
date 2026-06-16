@@ -23,12 +23,21 @@ import {
   type ColorThemeId,
   type DesignStyleId,
 } from "@/features/lp/components/lp-design-picker";
+import { LpHeroImagePicker } from "@/features/lp/components/lp-hero-image-picker";
 
 type Product = Pick<ProductRow, "id" | "name">;
 
 interface LpEasyWizardProps {
   action: (prev: LpActionState, formData: FormData) => Promise<LpActionState>;
   products: Product[];
+}
+
+function injectHeroImage(html: string, url: string | null): string {
+  if (!url) return html;
+  const img = `<img src="${url}" alt="ヒーロー画像" style="width:100%;max-height:380px;object-fit:cover;border-radius:8px;margin:20px 0;display:block;">`;
+  return html.includes("<!-- HERO_IMAGE -->")
+    ? html.replace("<!-- HERO_IMAGE -->", img)
+    : html.replace("</h1>", `</h1>\n${img}`);
 }
 
 function toSlug(text: string): string {
@@ -73,6 +82,7 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
   const [generateError, setGenerateError] = useState<string | null>(null);
   const [referenceWarning, setReferenceWarning] = useState<string | null>(null);
   const [generated, setGenerated] = useState(false);
+  const [heroImageUrl, setHeroImageUrl] = useState<string | null>(null);
 
   const STYLE_LABELS: Record<DesignStyleId, string> = {
     modern: "モダン", natural: "ナチュラル", luxury: "高級感", pop: "ポップ", business: "ビジネス",
@@ -242,6 +252,9 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
             </div>
           </div>
 
+          {/* ヒーロー画像設定 */}
+          <LpHeroImagePicker imageUrl={heroImageUrl} onImageUrl={setHeroImageUrl} />
+
           {state.error && (
             <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded px-3 py-2">
               {state.error}
@@ -249,7 +262,7 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
           )}
 
           <form action={formAction} className="flex flex-col gap-4">
-            <input type="hidden" name="htmlContent" value={generatedHtml} />
+            <input type="hidden" name="htmlContent" value={injectHeroImage(generatedHtml, heroImageUrl)} />
             <input type="hidden" name="productId" value={productId} />
 
             <div className="flex flex-col gap-1.5">
