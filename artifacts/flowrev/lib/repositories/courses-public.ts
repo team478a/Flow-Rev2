@@ -84,15 +84,22 @@ export async function getPublishedCourse(
   return mapCourse(data as Record<string, unknown>);
 }
 
-/** 公開済みレッスン一覧（sort_order 昇順） */
+/**
+ * 公開済みレッスン一覧（sort_order 昇順）。
+ * clientId も条件に含めることで、courseId だけでは他テナントのレッスンを
+ * 引けてしまわないようにする（呼び出し元の getPublishedCourse による
+ * テナントチェックへの依存だけに頼らない多層防御）。
+ */
 export async function listPublishedLessons(
   courseId: string,
+  clientId: string,
 ): Promise<LessonRow[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("lessons")
     .select("*")
     .eq("course_id", courseId)
+    .eq("client_id", clientId)
     .eq("status", "published")
     .order("sort_order", { ascending: true });
 

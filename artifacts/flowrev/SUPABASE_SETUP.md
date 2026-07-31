@@ -284,6 +284,53 @@ client_owner / white_label_owner 用しかないため、これを追加しな�
 
 ---
 
+## Step 17 — Stripe決済関連テーブルの拡張
+
+**ファイル:** `supabase/migrations/0010_stripe_payments.sql`
+
+`purchases.stripe_session_id` 列の追加、`stripe_accounts` / `payment_logs` への
+`client_owner` 向け参照ポリシーを追加します。決済機能（Stripe Checkout / Webhook）を
+使う前に必ず実行してください。
+
+```sql
+-- supabase/migrations/0010_stripe_payments.sql の内容をコピーして実行
+```
+
+## Step 18 — AI設定RLSポリシーの修正（重要・セキュリティ）
+
+**ファイル:** `supabase/migrations/0011_fix_ai_rls_policy.sql`
+
+Step 12（`0008_ai_rls.sql`）で作成したポリシーには不具合があり、`system_admin` 以外の
+ロールも `ai_provider_settings` を読み書きできる状態になっていました
+（`docs/audit/05_SECURITY_FINDINGS.md` M-5）。このステップで正しい条件に修正します。
+**Step 12 を実行済みの既存プロジェクトでも必ず実行してください。**
+
+```sql
+-- supabase/migrations/0011_fix_ai_rls_policy.sql の内容をコピーして実行
+```
+
+## Step 19 — plans / clients の欠落列を追加（重要）
+
+**ファイル:** `supabase/migrations/0012_plans_white_label_id.sql`,
+`supabase/migrations/0013_clients_plan_id.sql`
+
+代理店（white_label_owner）向けプラン管理機能とプラン付きクライアント招待の承諾に
+必要な列・RLSポリシーが、Step 1〜16 の個別ファイルだけでは作成されていませんでした
+（`supabase/prod_setup.sql` にのみ存在していたスキーマドリフト。
+`docs/audit/04_DATABASE_AND_AUTH.md`、`docs/audit/05_SECURITY_FINDINGS.md` M-1参照）。
+未適用のままだと、代理店プラン機能や「プラン付き招待の承諾」が
+「column does not exist」で実行時エラーになります。
+
+```sql
+-- supabase/migrations/0012_plans_white_label_id.sql の内容をコピーして実行
+-- 続けて supabase/migrations/0013_clients_plan_id.sql の内容をコピーして実行
+```
+
+> ℹ️ `supabase/migrations/_archived/` 内のファイルは、上記いずれのテーブルとも重複し
+> 適用すると衝突するため実行しないでください（詳細は同ディレクトリの README を参照）。
+
+---
+
 ## 実行順チェックリスト
 
 | # | ファイル | 状態 |
@@ -304,6 +351,9 @@ client_owner / white_label_owner 用しかないため、これを追加しな�
 | 14 | Auth 設定（GUI） | ☐ |
 | 15 | 初期データ（任意） | ☐ |
 | 16 | `0009_public_lp_policy.sql`（公開LP必須） | ☐ |
+| 17 | `0010_stripe_payments.sql`（決済機能を使うなら必須） | ☐ |
+| 18 | `0011_fix_ai_rls_policy.sql`（セキュリティ修正・必須） | ☐ |
+| 19 | `0012_plans_white_label_id.sql` + `0013_clients_plan_id.sql`（必須） | ☐ |
 
 ---
 

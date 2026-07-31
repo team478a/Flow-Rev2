@@ -51,6 +51,7 @@ CREATE TABLE clients (
   business_name TEXT NOT NULL,
   business_logo_url TEXT,
   status TEXT DEFAULT 'active',
+  plan_id UUID REFERENCES plans(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -783,7 +784,7 @@ CREATE POLICY "service_role: bypass payment_logs" ON payment_logs
 
 -- ai_provider_settings（system_admin のみ。service_role は RLS バイパス）
 CREATE POLICY "system_admin：AI設定全操作" ON ai_provider_settings
-  FOR ALL USING (TRUE) WITH CHECK (TRUE);
+  FOR ALL USING (get_user_role() = 'system_admin') WITH CHECK (get_user_role() = 'system_admin');
 
 -- ============================================================
 -- 9: ユーザー作成トリガー
