@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface CourseRow {
   id: string;
@@ -129,7 +130,7 @@ export async function listCourses(): Promise<CourseRow[]> {
     .select(`${COURSE_COLS}, lessons(count)`)
     .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(`コース一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("コース一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => {
     const row = r as Record<string, unknown>;
     const ls = row.lessons as Array<{ count: number }> | undefined;
@@ -146,7 +147,7 @@ export async function getCourse(id: string): Promise<CourseRow | null> {
     .eq("id", id)
     .maybeSingle();
 
-  if (error) throw new Error(`コースの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("コースの取得に失敗しました", error);
   if (!data) return null;
   return mapCourse(data as Record<string, unknown>);
 }
@@ -179,7 +180,7 @@ export async function createCourse(
     .single();
 
   if (error || !data)
-    throw new Error(`コースの作成に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("コースの作成に失敗しました", error);
   return mapCourse(data as Record<string, unknown>);
 }
 
@@ -202,7 +203,7 @@ export async function updateCourse(
     .single();
 
   if (error || !data)
-    throw new Error(`コースの更新に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("コースの更新に失敗しました", error);
   return mapCourse(data as Record<string, unknown>);
 }
 
@@ -210,7 +211,7 @@ export async function updateCourse(
 export async function deleteCourse(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("courses").delete().eq("id", id);
-  if (error) throw new Error(`コースの削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("コースの削除に失敗しました", error);
 }
 
 /** レッスン一覧（sort_order 昇順） */
@@ -222,7 +223,7 @@ export async function listLessons(courseId: string): Promise<LessonRow[]> {
     .eq("course_id", courseId)
     .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(`レッスン一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("レッスン一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapLesson(r as Record<string, unknown>));
 }
 
@@ -262,7 +263,7 @@ export async function addLesson(input: CreateLessonInput): Promise<LessonRow> {
     .single();
 
   if (error || !data)
-    throw new Error(`レッスンの追加に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("レッスンの追加に失敗しました", error);
   return mapLesson(data as Record<string, unknown>);
 }
 
@@ -304,7 +305,7 @@ export async function updateLesson(
     .single();
 
   if (error || !data)
-    throw new Error(`レッスンの更新に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("レッスンの更新に失敗しました", error);
   return mapLesson(data as Record<string, unknown>);
 }
 
@@ -312,5 +313,5 @@ export async function updateLesson(
 export async function deleteLesson(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("lessons").delete().eq("id", id);
-  if (error) throw new Error(`レッスンの削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("レッスンの削除に失敗しました", error);
 }

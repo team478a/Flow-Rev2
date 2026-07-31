@@ -56,8 +56,9 @@ export async function POST(req: NextRequest) {
 
   if (!cfRes.ok) {
     const body = await cfRes.text().catch(() => "");
+    console.error(`[upload-url] Cloudflare API エラー (${cfRes.status}): ${body}`);
     return NextResponse.json(
-      { error: `Cloudflare API エラー (${cfRes.status}): ${body}` },
+      { error: "Cloudflareへのアップロード準備に失敗しました。" },
       { status: 502 },
     );
   }

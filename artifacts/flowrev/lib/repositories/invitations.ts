@@ -1,6 +1,7 @@
 import { randomBytes } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 const INVITE_EXPIRY_DAYS = 7;
 
@@ -61,9 +62,7 @@ export async function createInvitation(
     .single();
 
   if (error || !data) {
-    throw new Error(
-      `招待の作成に失敗しました: ${error?.message ?? "不明なエラー"}`,
-    );
+    throwSafe("招待の作成に失敗しました", error);
   }
 
   return { id: data.id as string, token: data.token as string };
@@ -84,7 +83,7 @@ export async function listInvitations(): Promise<InvitationRow[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    throw new Error(`招待一覧の取得に失敗しました: ${error.message}`);
+    throwSafe("招待一覧の取得に失敗しました", error);
   }
 
   return (data ?? []).map((r) => ({
@@ -159,7 +158,7 @@ export async function claimInvitation(token: string): Promise<boolean> {
     .select("id");
 
   if (error) {
-    throw new Error(`招待ステータスの更新に失敗しました: ${error.message}`);
+    throwSafe("招待ステータスの更新に失敗しました", error);
   }
 
   return (data?.length ?? 0) > 0;
@@ -182,7 +181,7 @@ export async function deleteInvitation(
     .neq("status", "accepted");
 
   if (error) {
-    throw new Error(`招待の削除に失敗しました: ${error.message}`);
+    throwSafe("招待の削除に失敗しました", error);
   }
 }
 
@@ -210,7 +209,7 @@ export async function resendInvitationToken(
     .single();
 
   if (error || !data) {
-    throw new Error(`招待トークンの更新に失敗しました: ${error?.message ?? "対象が見つかりません"}`);
+    throwSafe("招待トークンの更新に失敗しました", error);
   }
 
   return { token };

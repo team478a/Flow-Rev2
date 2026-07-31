@@ -235,9 +235,9 @@ SQL ではなくダッシュボードの GUI で設定します。
    → 確認メールのテンプレートをブランドに合わせてカスタマイズ（任意）
 
 3. **Authentication → URL Configuration**  
-   → Site URL を本番ドメインまたは Replit プレビュー URL に設定  
+   → Site URL を本番ドメイン（Vercel の Production/Preview URL）に設定  
    → Redirect URLs に `/auth/callback` を追加  
-   例: `https://your-domain.repl.co/auth/callback`
+   例: `https://your-app.vercel.app/auth/callback`
 
 4. **Authentication → Providers → Email → Confirm email**  
    → 開発中は OFF でも可（本番では ON 推奨）
@@ -284,6 +284,67 @@ client_owner / white_label_owner 用しかないため、これを追加しな�
 
 ---
 
+## Step 17 — Stripe決済関連テーブルの拡張
+
+**ファイル:** `supabase/migrations/0010_stripe_payments.sql`
+
+`purchases.stripe_session_id` 列の追加、`stripe_accounts` / `payment_logs` への
+`client_owner` 向け参照ポリシーを追加します。決済機能（Stripe Checkout / Webhook）を
+使う前に必ず実行してください。
+
+```sql
+-- supabase/migrations/0010_stripe_payments.sql の内容をコピーして実行
+```
+
+## Step 18 — AI設定RLSポリシーの修正（重要・セキュリティ）
+
+**ファイル:** `supabase/migrations/0011_fix_ai_rls_policy.sql`
+
+Step 12（`0008_ai_rls.sql`）で作成したポリシーには不具合があり、`system_admin` 以外の
+ロールも `ai_provider_settings` を読み書きできる状態になっていました
+（`docs/audit/05_SECURITY_FINDINGS.md` M-5）。このステップで正しい条件に修正します。
+**Step 12 を実行済みの既存プロジェクトでも必ず実行してください。**
+
+```sql
+-- supabase/migrations/0011_fix_ai_rls_policy.sql の内容をコピーして実行
+```
+
+## Step 19 — plans / clients の欠落列を追加（重要）
+
+**ファイル:** `supabase/migrations/0012_plans_white_label_id.sql`,
+`supabase/migrations/0013_clients_plan_id.sql`
+
+代理店（white_label_owner）向けプラン管理機能とプラン付きクライアント招待の承諾に
+必要な列・RLSポリシーが、Step 1〜16 の個別ファイルだけでは作成されていませんでした
+（`supabase/prod_setup.sql` にのみ存在していたスキーマドリフト。
+`docs/audit/04_DATABASE_AND_AUTH.md`、`docs/audit/05_SECURITY_FINDINGS.md` M-1参照）。
+未適用のままだと、代理店プラン機能や「プラン付き招待の承諾」が
+「column does not exist」で実行時エラーになります。
+
+```sql
+-- supabase/migrations/0012_plans_white_label_id.sql の内容をコピーして実行
+-- 続けて supabase/migrations/0013_clients_plan_id.sql の内容をコピーして実行
+```
+
+> ℹ️ `supabase/migrations/_archived/` 内のファイルは、上記いずれのテーブルとも重複し
+> 適用すると衝突するため実行しないでください（詳細は同ディレクトリの README を参照）。
+
+## Step 20 — LPデザインシステム列の追加（AI生成LPの見た目修正）
+
+**ファイル:** `supabase/migrations/0014_lp_design_columns.sql`
+
+「AIでデザイン済みLPを生成する」ウィザードで作成したLPが、公開時に見た目（CSS）が
+丸ごと消えてしまう不具合を修正するための列追加です（`docs/audit/05_SECURITY_FINDINGS.md`
+L-2）。デザイン設定（配色・スタイル名）をHTML本文とは別の列に保存し、CSSはその
+パラメータからアプリが安全に生成する方式に変更しました。`public_landing_pages`
+ビューも合わせて更新されます。
+
+```sql
+-- supabase/migrations/0014_lp_design_columns.sql の内容をコピーして実行
+```
+
+---
+
 ## 実行順チェックリスト
 
 | # | ファイル | 状態 |
@@ -304,6 +365,10 @@ client_owner / white_label_owner 用しかないため、これを追加しな�
 | 14 | Auth 設定（GUI） | ☐ |
 | 15 | 初期データ（任意） | ☐ |
 | 16 | `0009_public_lp_policy.sql`（公開LP必須） | ☐ |
+| 17 | `0010_stripe_payments.sql`（決済機能を使うなら必須） | ☐ |
+| 18 | `0011_fix_ai_rls_policy.sql`（セキュリティ修正・必須） | ☐ |
+| 19 | `0012_plans_white_label_id.sql` + `0013_clients_plan_id.sql`（必須） | ☐ |
+| 20 | `0014_lp_design_columns.sql`（LPデザイン表示の修正・必須） | ☐ |
 
 ---
 
@@ -335,4 +400,4 @@ client_owner / white_label_owner 用しかないため、これを追加しな�
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → service_role key | 管理クライアント（サーバー専用・公開厳禁） |
 | `ENCRYPTION_KEY` | 任意の32文字以上の文字列を生成 | AI / メール APIキーの暗号化 |
 | `SESSION_SECRET` | 任意の32文字以上の文字列を生成 | セッション署名 |
-| `NEXT_PUBLIC_APP_URL` | デプロイ後の本番URL | 招待URLの生成（未設定時は REPLIT_DOMAINS を自動使用） |
+| `NEXT_PUBLIC_APP_URL` | デプロイ後の本番URL | 招待URLの生成に必須（未設定の場合は招待の作成・再送がエラーになる） |

@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { checkRateLimit, getClientIp, hashForRateLimitKey } from "@/lib/rate-limit";
 import { roleHomePath } from "./role";
 import { getSessionProfile } from "./session";
 
@@ -29,6 +30,17 @@ export async function login(
 
   if (!email || !password) {
     return { error: "メールアドレスとパスワードを入力してください。" };
+  }
+
+  const ip = getClientIp();
+  const [ipLimit, emailLimit] = await Promise.all([
+    checkRateLimit(`login:ip:${ip}`, 20, 300),
+    checkRateLimit(`login:email:${hashForRateLimitKey(email)}`, 10, 900),
+  ]);
+  if (!ipLimit.allowed || !emailLimit.allowed) {
+    return {
+      error: "ログイン試行回数が多すぎます。しばらく待ってから再度お試しください。",
+    };
   }
 
   const supabase = createClient();
@@ -76,6 +88,18 @@ export async function requestPasswordReset(
   const email = String(formData.get("email") ?? "").trim();
   if (!email) {
     return { error: "メールアドレスを入力してください。", success: null };
+  }
+
+  const ip = getClientIp();
+  const [ipLimit, emailLimit] = await Promise.all([
+    checkRateLimit(`pwreset:ip:${ip}`, 10, 900),
+    checkRateLimit(`pwreset:email:${hashForRateLimitKey(email)}`, 5, 900),
+  ]);
+  if (!ipLimit.allowed || !emailLimit.allowed) {
+    return {
+      error: "リクエスト回数が多すぎます。しばらく待ってから再度お試しください。",
+      success: null,
+    };
   }
 
   const headersList = headers();

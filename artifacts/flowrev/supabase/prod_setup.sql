@@ -51,6 +51,7 @@ CREATE TABLE clients (
   business_name TEXT NOT NULL,
   business_logo_url TEXT,
   status TEXT DEFAULT 'active',
+  plan_id UUID REFERENCES plans(id),
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -155,6 +156,10 @@ CREATE TABLE landing_pages (
   views INTEGER DEFAULT 0,
   conversions INTEGER DEFAULT 0,
   ai_generated BOOLEAN DEFAULT FALSE,
+  design_style_name TEXT,
+  design_color_primary TEXT,
+  design_color_bg TEXT,
+  design_color_accent TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(client_id, slug)
@@ -783,7 +788,7 @@ CREATE POLICY "service_role: bypass payment_logs" ON payment_logs
 
 -- ai_provider_settings（system_admin のみ。service_role は RLS バイパス）
 CREATE POLICY "system_admin：AI設定全操作" ON ai_provider_settings
-  FOR ALL USING (TRUE) WITH CHECK (TRUE);
+  FOR ALL USING (get_user_role() = 'system_admin') WITH CHECK (get_user_role() = 'system_admin');
 
 -- ============================================================
 -- 9: ユーザー作成トリガー
@@ -821,7 +826,9 @@ CREATE TRIGGER on_auth_user_created
 -- 10: 公開LP ビュー（anon 向け）
 -- ============================================================
 CREATE OR REPLACE VIEW public_landing_pages AS
-SELECT id, title, slug, html_content
+SELECT
+  id, title, slug, html_content,
+  design_style_name, design_color_primary, design_color_bg, design_color_accent
 FROM landing_pages
 WHERE status = 'published';
 

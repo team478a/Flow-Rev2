@@ -168,7 +168,7 @@ export default async function MyCoursePage({ params, searchParams }: Props) {
 
   const [course, lessons, customerId] = await Promise.all([
     getPublishedCourse(params.id, session.clientId).catch(() => null),
-    listPublishedLessons(params.id).catch(() => []),
+    listPublishedLessons(params.id, session.clientId).catch(() => []),
     getCustomerIdByUserId(session.userId),
   ]);
 

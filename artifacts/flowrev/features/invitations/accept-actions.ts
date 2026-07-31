@@ -124,6 +124,28 @@ export async function acceptInvitationAction(
       };
     }
 
+    // 招待URL（トークン）は招待作成者（white_label_owner）自身にも直接返却されるため、
+    // このメールアドレスが既に他テナント／他ロールの有効なアカウントである場合に
+    // 無条件でパスワード・ロール・所属を上書きすると、招待作成者がメールアドレスを
+    // 知っているだけで任意アカウントを乗っ取れてしまう（アカウント乗っ取り対策）。
+    // 「このメールが自分の white_label 配下の client_owner だった」場合のみ再利用を許可する。
+    const { data: existingProfile } = await admin
+      .from("user_profiles")
+      .select("white_label_id, role")
+      .eq("id", existingId)
+      .maybeSingle();
+
+    const isSameTenantClientOwner =
+      existingProfile?.role === "client_owner" &&
+      existingProfile?.white_label_id === invitation.whiteLabelId;
+
+    if (!isSameTenantClientOwner) {
+      return {
+        error:
+          "このメールアドレスは既に別のアカウントで使用されています。管理者にご連絡ください。",
+      };
+    }
+
     const { error: updateError } = await admin.auth.admin.updateUserById(existingId, {
       password,
       email_confirm: true,

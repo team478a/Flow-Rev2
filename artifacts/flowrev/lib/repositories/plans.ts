@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface PlanOption {
   id: string;
@@ -38,7 +39,7 @@ export async function listPlans(): Promise<PlanOption[]> {
     .order("price_monthly", { ascending: true });
 
   if (error) {
-    throw new Error(`プランの取得に失敗しました: ${error.message}`);
+    throwSafe("プランの取得に失敗しました", error);
   }
 
   return (data ?? []).map((p) => ({
@@ -61,7 +62,7 @@ export async function listPlansFull(): Promise<PlanRow[]> {
     .order("price_monthly", { ascending: true });
 
   if (error) {
-    throw new Error(`プランの取得に失敗しました: ${error.message}`);
+    throwSafe("プランの取得に失敗しました", error);
   }
 
   return (data ?? []).map((p) => ({
@@ -88,7 +89,7 @@ export async function listWLPlans(whiteLabelId: string): Promise<PlanOption[]> {
     .order("price_monthly", { ascending: true });
 
   if (error) {
-    throw new Error(`プランの取得に失敗しました: ${error.message}`);
+    throwSafe("プランの取得に失敗しました", error);
   }
 
   return (data ?? []).map((p) => ({
@@ -110,7 +111,7 @@ export async function listWLPlansFull(whiteLabelId: string): Promise<PlanRow[]> 
     .order("price_monthly", { ascending: true });
 
   if (error) {
-    throw new Error(`プランの取得に失敗しました: ${error.message}`);
+    throwSafe("プランの取得に失敗しました", error);
   }
 
   return (data ?? []).map((p) => ({
@@ -148,7 +149,7 @@ export async function createWLPlan(
     .single();
 
   if (error || !data) {
-    throw new Error(`プランの作成に失敗しました: ${error?.message ?? "不明なエラー"}`);
+    throwSafe("プランの作成に失敗しました", error);
   }
 
   return { id: data.id as string };
@@ -169,7 +170,7 @@ export async function getWLPlan(
     .eq("white_label_id", whiteLabelId)
     .maybeSingle();
 
-  if (error) throw new Error(`取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("取得に失敗しました", error);
   if (!data) return null;
 
   return {
@@ -206,7 +207,7 @@ export async function updateWLPlan(
     .eq("id", id)
     .eq("white_label_id", whiteLabelId);
 
-  if (error) throw new Error(`更新に失敗しました: ${error.message}`);
+  if (error) throwSafe("更新に失敗しました", error);
 }
 
 /**
@@ -223,7 +224,7 @@ export async function deleteWLPlan(
     .eq("id", id)
     .eq("white_label_id", whiteLabelId);
 
-  if (error) throw new Error(`削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("削除に失敗しました", error);
 }
 
 /**
@@ -246,9 +247,7 @@ export async function createPlan(
     .single();
 
   if (error || !data) {
-    throw new Error(
-      `プランの作成に失敗しました: ${error?.message ?? "不明なエラー"}`,
-    );
+    throwSafe("プランの作成に失敗しました", error);
   }
 
   return { id: data.id as string };

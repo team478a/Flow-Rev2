@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface WhiteLabelListItem {
   id: string;
@@ -32,7 +33,7 @@ export async function listWhiteLabels(): Promise<WhiteLabelListItem[]> {
     .order("created_at", { ascending: false });
 
   if (error) {
-    throw new Error(`ホワイトラベルの取得に失敗しました: ${error.message}`);
+    throwSafe("ホワイトラベルの取得に失敗しました", error);
   }
 
   // オーナーのメールを auth.users から一括取得してマッピングする。
@@ -87,7 +88,7 @@ export async function getWhiteLabel(id: string): Promise<WhiteLabelDetail | null
     .eq("id", id)
     .maybeSingle();
 
-  if (error) throw new Error(`取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("取得に失敗しました", error);
   if (!data) return null;
 
   return {
@@ -119,7 +120,7 @@ export async function updateWhiteLabel(
     .update(payload)
     .eq("id", id);
 
-  if (error) throw new Error(`更新に失敗しました: ${error.message}`);
+  if (error) throwSafe("更新に失敗しました", error);
 }
 
 /**
@@ -135,7 +136,7 @@ export async function toggleWhiteLabelStatus(
     .update({ status })
     .eq("id", id);
 
-  if (error) throw new Error(`ステータス変更に失敗しました: ${error.message}`);
+  if (error) throwSafe("ステータス変更に失敗しました", error);
 }
 
 /**

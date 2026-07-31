@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface CreatePurchaseInput {
   clientId: string;
@@ -44,7 +45,7 @@ export async function createPurchase(
     .select("id")
     .single();
 
-  if (error) throw new Error(`購入記録の作成に失敗: ${error.message}`);
+  if (error) throwSafe("購入記録の作成に失敗", error);
   return (data as Record<string, unknown>).id as string;
 }
 
@@ -62,7 +63,7 @@ export async function markPurchasePaid(
     .eq("stripe_session_id", stripeSessionId)
     .eq("payment_status", "pending");
 
-  if (error) throw new Error(`購入ステータスの更新に失敗: ${error.message}`);
+  if (error) throwSafe("購入ステータスの更新に失敗", error);
 }
 
 /** 指定顧客が paid 購入を持っているか確認する */
@@ -118,7 +119,7 @@ export async function getPurchasesByCustomer(
     .eq("client_id", clientId)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`購入履歴の取得に失敗: ${error.message}`);
+  if (error) throwSafe("購入履歴の取得に失敗", error);
   return (data ?? []) as PurchaseRow[];
 }
 
@@ -147,7 +148,7 @@ export async function getPurchasesForClient(
     .order("created_at", { ascending: false })
     .limit(300);
 
-  if (error) throw new Error(`購入履歴の取得に失敗: ${error.message}`);
+  if (error) throwSafe("購入履歴の取得に失敗", error);
   const rows = (data ?? []) as Record<string, unknown>[];
 
   const customerIds = [...new Set(rows.map((r) => r.customer_id as string).filter(Boolean))];

@@ -4,6 +4,7 @@
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CourseRow, LessonRow } from "@/lib/repositories/courses";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 function mapCourse(r: Record<string, unknown>): CourseRow {
   return {
@@ -56,7 +57,7 @@ export async function listPublishedCourses(
     .eq("status", "published")
     .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(`コース一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("コース一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => {
     const row = r as Record<string, unknown>;
     const ls = row.lessons as Array<{ count: number }> | undefined;
@@ -78,23 +79,30 @@ export async function getPublishedCourse(
     .eq("status", "published")
     .maybeSingle();
 
-  if (error) throw new Error(`コースの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("コースの取得に失敗しました", error);
   if (!data) return null;
   return mapCourse(data as Record<string, unknown>);
 }
 
-/** 公開済みレッスン一覧（sort_order 昇順） */
+/**
+ * 公開済みレッスン一覧（sort_order 昇順）。
+ * clientId も条件に含めることで、courseId だけでは他テナントのレッスンを
+ * 引けてしまわないようにする（呼び出し元の getPublishedCourse による
+ * テナントチェックへの依存だけに頼らない多層防御）。
+ */
 export async function listPublishedLessons(
   courseId: string,
+  clientId: string,
 ): Promise<LessonRow[]> {
   const supabase = createAdminClient();
   const { data, error } = await supabase
     .from("lessons")
     .select("*")
     .eq("course_id", courseId)
+    .eq("client_id", clientId)
     .eq("status", "published")
     .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(`レッスン一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("レッスン一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapLesson(r as Record<string, unknown>));
 }

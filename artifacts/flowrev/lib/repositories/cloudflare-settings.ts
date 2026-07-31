@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface CloudflareSettingsMasked {
   accountId: string | null;
@@ -37,7 +38,7 @@ export async function getCloudflareSettingsMasked(): Promise<CloudflareSettingsM
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Cloudflare設定の取得に失敗: ${error.message}`);
+  if (error) throwSafe("Cloudflare設定の取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -64,7 +65,7 @@ export async function getCloudflareSettingsResolved(): Promise<CloudflareSetting
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`Cloudflare設定の取得に失敗: ${error.message}`);
+  if (error) throwSafe("Cloudflare設定の取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -190,9 +191,9 @@ export async function upsertCloudflareSettings(
       .from("cloudflare_settings")
       .update(payload)
       .eq("id", existingRow.id as string);
-    if (error) throw new Error(`Cloudflare設定の更新に失敗: ${error.message}`);
+    if (error) throwSafe("Cloudflare設定の更新に失敗", error);
   } else {
     const { error } = await admin.from("cloudflare_settings").insert(payload);
-    if (error) throw new Error(`Cloudflare設定の作成に失敗: ${error.message}`);
+    if (error) throwSafe("Cloudflare設定の作成に失敗", error);
   }
 }

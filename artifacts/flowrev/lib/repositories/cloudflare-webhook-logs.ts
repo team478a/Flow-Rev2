@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export type WebhookLogResult = "success" | "sig_error" | "db_error" | "parse_error";
 
@@ -47,6 +48,6 @@ export async function getRecentWebhookLogs(limit = 20): Promise<CloudflareWebhoo
     .order("received_at", { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`Webhook ログの取得に失敗: ${error.message}`);
+  if (error) throwSafe("Webhook ログの取得に失敗", error);
   return (data ?? []) as CloudflareWebhookLog[];
 }

@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface ProgressRow {
   id: string;
@@ -53,7 +54,7 @@ export async function getCourseProgress(
     .eq("customer_id", customerId)
     .eq("course_id", courseId);
 
-  if (error) throw new Error(`進捗の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("進捗の取得に失敗しました", error);
   return (data ?? []).map((r) => mapProgress(r as Record<string, unknown>));
 }
 
@@ -100,5 +101,5 @@ export async function upsertLessonComplete(
   );
 
   if (error)
-    throw new Error(`進捗の更新に失敗しました: ${error.message}`);
+    throwSafe("進捗の更新に失敗しました", error);
 }

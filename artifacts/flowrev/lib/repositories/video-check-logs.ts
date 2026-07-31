@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface VideoCheckLog {
   id: string;
@@ -28,7 +29,7 @@ export async function insertVideoCheckLog(params: {
     total: params.total,
     notified: params.notified,
   });
-  if (error) throw new Error(`チェックログの保存に失敗: ${error.message}`);
+  if (error) throwSafe("チェックログの保存に失敗", error);
 }
 
 export interface VideoCheckLogChartPoint {
@@ -62,7 +63,7 @@ export async function getVideoCheckLogsForChart(
 
   const { data, error } = await query;
 
-  if (error) throw new Error(`チャートデータの取得に失敗: ${error.message}`);
+  if (error) throwSafe("チャートデータの取得に失敗", error);
 
   const rows = ((data ?? []) as Record<string, unknown>[]).reverse();
   return rows.map((row) => {
@@ -116,7 +117,7 @@ export async function getVideoCheckLogsPage(
     .order("checked_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
 
-  if (error) throw new Error(`チェックログの取得に失敗: ${error.message}`);
+  if (error) throwSafe("チェックログの取得に失敗", error);
 
   const rows = (data ?? []) as Record<string, unknown>[];
   const logs: VideoCheckLog[] = rows.map((row) => ({

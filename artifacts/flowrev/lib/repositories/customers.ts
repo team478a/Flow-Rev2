@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface CustomerRow {
   id: string;
@@ -70,7 +71,7 @@ export async function listCustomers(): Promise<CustomerRow[]> {
     .select(COLS)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`顧客一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("顧客一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
 }
 
@@ -83,7 +84,7 @@ export async function getCustomer(id: string): Promise<CustomerRow | null> {
     .eq("id", id)
     .maybeSingle();
 
-  if (error) throw new Error(`顧客の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("顧客の取得に失敗しました", error);
   if (!data) return null;
   return mapRow(data as Record<string, unknown>);
 }
@@ -110,9 +111,7 @@ export async function createCustomer(
     .single();
 
   if (error || !data)
-    throw new Error(
-      `顧客の作成に失敗しました: ${error?.message ?? "不明"}`,
-    );
+    throwSafe("顧客の作成に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -142,9 +141,7 @@ export async function updateCustomer(
     .single();
 
   if (error || !data)
-    throw new Error(
-      `顧客の更新に失敗しました: ${error?.message ?? "不明"}`,
-    );
+    throwSafe("顧客の更新に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -152,5 +149,5 @@ export async function updateCustomer(
 export async function deleteCustomer(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("customers").delete().eq("id", id);
-  if (error) throw new Error(`顧客の削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("顧客の削除に失敗しました", error);
 }

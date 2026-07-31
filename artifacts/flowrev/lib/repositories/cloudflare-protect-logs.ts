@@ -1,5 +1,6 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface CloudflareProtectLog {
   id: string;
@@ -22,7 +23,7 @@ export async function getLatestProtectLog(): Promise<CloudflareProtectLog | null
     .limit(1)
     .maybeSingle();
 
-  if (error) throw new Error(`保護ログの取得に失敗: ${error.message}`);
+  if (error) throwSafe("保護ログの取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -61,7 +62,7 @@ export async function getRecentProtectLogs(
     .order("executed_at", { ascending: false })
     .limit(limit);
 
-  if (error) throw new Error(`保護ログの取得に失敗: ${error.message}`);
+  if (error) throwSafe("保護ログの取得に失敗", error);
   if (!data) return [];
 
   const rows = data as Record<string, unknown>[];
@@ -127,7 +128,7 @@ export async function getProtectLogsPage(
     .order("executed_at", { ascending: false })
     .range(offset, offset + pageSize - 1);
 
-  if (error) throw new Error(`保護ログの取得に失敗: ${error.message}`);
+  if (error) throwSafe("保護ログの取得に失敗", error);
 
   const rows = (data ?? []) as Record<string, unknown>[];
 
@@ -190,5 +191,5 @@ export async function insertProtectLog(params: {
         ? params.errorDetails
         : null,
   });
-  if (error) throw new Error(`保護ログの保存に失敗: ${error.message}`);
+  if (error) throwSafe("保護ログの保存に失敗", error);
 }

@@ -24,6 +24,7 @@ import {
   type DesignStyleId,
 } from "@/features/lp/components/lp-design-picker";
 import { LpHeroImagePicker } from "@/features/lp/components/lp-hero-image-picker";
+import { generateLpCss } from "@/lib/ai/lp-design-system";
 
 type Product = Pick<ProductRow, "id" | "name">;
 
@@ -46,12 +47,18 @@ function toSlug(text: string): string {
   return ascii.length > 2 ? `${ascii.slice(0, 24)}-${ts}` : `lp-${ts}`;
 }
 
-/** AI が <style> タグ込みの HTML を生成するので、ラッパーは最小限にする */
-function buildPreviewDoc(html: string): string {
+/**
+ * プレビュー用ドキュメントを構築する。
+ * デザインCSSは（AIが生成する本文HTMLとは別に）このコンポーネント自身が選択中の
+ * テーマから生成する信頼できる文字列であり、保存後も landing_pages の別列
+ * （design_style_name 等）から同じ関数で再生成されるため、プレビューと公開後の
+ * 見た目が一致する（docs/audit/05_SECURITY_FINDINGS.md L-2 の修正）。
+ */
+function buildPreviewDoc(bodyHtml: string, css: string): string {
   return `<!DOCTYPE html><html lang="ja"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<style>*{box-sizing:border-box;}body{margin:0;}img{max-width:100%;height:auto;}</style>
-</head><body>${html}</body></html>`;
+<style>*{box-sizing:border-box;}body{margin:0;}img{max-width:100%;height:auto;}${css}</style>
+</head><body>${bodyHtml}</body></html>`;
 }
 
 function SaveButton() {
@@ -88,6 +95,13 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
     modern: "モダン", natural: "ナチュラル", luxury: "高級感", pop: "ポップ", business: "ビジネス",
   };
 
+  const theme = COLOR_THEMES.find((t) => t.id === colorTheme) ?? COLOR_THEMES[0];
+  const styleName = STYLE_LABELS[designStyle];
+  const css = generateLpCss(
+    { primary: theme.primary, bg: theme.bg, accent: theme.accent },
+    styleName,
+  );
+
   async function handleGenerate() {
     if (!purpose.trim()) return;
     setIsGenerating(true);
@@ -95,7 +109,6 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
     setReferenceWarning(null);
 
     const selectedProduct = products.find((p) => p.id === productId);
-    const theme = COLOR_THEMES.find((t) => t.id === colorTheme) ?? COLOR_THEMES[0];
 
     try {
       const res = await fetch("/api/ai/generate-lp", {
@@ -105,14 +118,14 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
           title: `${purpose}${target ? `（ターゲット：${target}）` : ""}`,
           productName: selectedProduct?.name ?? "",
           referenceUrl: referenceUrl.trim() || undefined,
-          designStyleName: STYLE_LABELS[designStyle],
+          designStyleName: styleName,
           colorPrimary: theme.primary,
           colorBg: theme.bg,
           colorAccent: theme.accent,
         }),
       });
       const data = (await res.json()) as {
-        text?: string;
+        html?: string;
         error?: string;
         referenceWarning?: string;
       };
@@ -121,8 +134,8 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
         return;
       }
       if (data.referenceWarning) setReferenceWarning(data.referenceWarning);
-      if (data.text) {
-        setGeneratedHtml(data.text);
+      if (data.html) {
+        setGeneratedHtml(data.html);
         if (!title) setTitle(purpose.slice(0, 50));
         if (!slug) setSlug(toSlug(purpose));
         setGenerated(true);
@@ -243,7 +256,7 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
             </p>
             <div className="rounded-md border border-border overflow-hidden bg-white">
               <iframe
-                srcDoc={buildPreviewDoc(generatedHtml)}
+                srcDoc={buildPreviewDoc(generatedHtml, css)}
                 className="w-full"
                 style={{ height: "480px" }}
                 sandbox="allow-same-origin"
@@ -264,6 +277,10 @@ export function LpEasyWizard({ action, products }: LpEasyWizardProps) {
           <form action={formAction} className="flex flex-col gap-4">
             <input type="hidden" name="htmlContent" value={injectHeroImage(generatedHtml, heroImageUrl)} />
             <input type="hidden" name="productId" value={productId} />
+            <input type="hidden" name="designStyleName" value={styleName} />
+            <input type="hidden" name="colorPrimary" value={theme.primary} />
+            <input type="hidden" name="colorBg" value={theme.bg} />
+            <input type="hidden" name="colorAccent" value={theme.accent} />
 
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ez-title">LPタイトル <span className="text-red-500 text-xs">必須</span></Label>

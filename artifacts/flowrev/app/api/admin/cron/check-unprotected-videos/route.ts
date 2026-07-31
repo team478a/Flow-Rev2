@@ -19,7 +19,9 @@ import { getSessionProfile } from "@/features/auth/session";
  *   2. system_admin 全員の auth メールアドレス（フォールバック）
  *
  * 認証: Authorization: Bearer <CRON_SECRET> ヘッダーで検証。
- * 未設定の場合は認証なし（開発時のみ許容）。
+ * CRON_SECRET が未設定の場合、本番環境（NODE_ENV=production）ではリクエストを
+ * 拒否する（フェイルクローズ）。開発環境では system_admin セッションへフォール
+ * バックする（完全な認証なしでは絶対に処理しない）。
  *
  * Response: { ok: boolean; unprotected: number; total: number; notified: boolean; message?: string }
  */
@@ -33,7 +35,20 @@ export async function POST(req: NextRequest) {
 
 async function handleCron(req: NextRequest): Promise<NextResponse> {
   const secret = process.env.CRON_SECRET;
-  if (secret) {
+
+  if (!secret) {
+    if (process.env.NODE_ENV === "production") {
+      return NextResponse.json(
+        { error: "CRON_SECRET が未設定です。管理者に連絡してください。" },
+        { status: 503 },
+      );
+    }
+    // 開発環境のみ：CRON_SECRET 未設定でも system_admin セッションなら許可する
+    const session = await getSessionProfile();
+    if (!session || session.role !== "system_admin") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+  } else {
     const authHeader = req.headers.get("authorization") ?? "";
     const token = authHeader.startsWith("Bearer ")
       ? authHeader.slice(7)

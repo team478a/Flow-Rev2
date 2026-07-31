@@ -63,11 +63,28 @@ export async function enqueuePurchaseScenarios(
  * 実行待ち（pending）のログとステップ情報をまとめて取得する。
  * force=true のとき delay_days を無視して全 pending を返す。
  * force=false のとき created_at + delay_days 日 <= now() のみ返す。
+ *
+ * clientId を指定した場合、そのクライアントが所有するシナリオのログのみに絞り込む
+ * （client_owner が自テナント以外のログを処理できないようにするため）。
+ * 省略した場合（system_admin 用）は全テナントを対象にする。
  */
 export async function listPendingDueLogs(
   force: boolean,
+  clientId?: string,
 ): Promise<PendingLogWithStep[]> {
   const supabase = createAdminClient();
+
+  let allowedScenarioIds: Set<string> | null = null;
+  if (clientId) {
+    const { data: scenarios } = await supabase
+      .from("follow_scenarios")
+      .select("id")
+      .eq("client_id", clientId);
+    allowedScenarioIds = new Set(
+      (scenarios ?? []).map((s) => (s as Record<string, unknown>).id as string),
+    );
+    if (allowedScenarioIds.size === 0) return [];
+  }
 
   const { data: logs, error } = await supabase
     .from("scenario_logs")
@@ -94,6 +111,10 @@ export async function listPendingDueLogs(
   const result: PendingLogWithStep[] = [];
 
   for (const log of logs as Record<string, unknown>[]) {
+    if (allowedScenarioIds && !allowedScenarioIds.has(log.scenario_id as string)) {
+      continue;
+    }
+
     const step = stepMap.get(log.step_id as string);
     if (!step) continue;
 

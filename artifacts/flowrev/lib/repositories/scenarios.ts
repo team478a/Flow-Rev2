@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface ScenarioRow {
   id: string;
@@ -103,7 +104,7 @@ export async function listScenarios(): Promise<ScenarioRow[]> {
     .order("created_at", { ascending: false });
 
   if (error)
-    throw new Error(`シナリオ一覧の取得に失敗しました: ${error.message}`);
+    throwSafe("シナリオ一覧の取得に失敗しました", error);
 
   return (data ?? []).map((r) => {
     const row = r as Record<string, unknown>;
@@ -122,7 +123,7 @@ export async function getScenario(id: string): Promise<ScenarioRow | null> {
     .maybeSingle();
 
   if (error)
-    throw new Error(`シナリオの取得に失敗しました: ${error.message}`);
+    throwSafe("シナリオの取得に失敗しました", error);
   if (!data) return null;
   return mapScenario(data as Record<string, unknown>);
 }
@@ -145,9 +146,7 @@ export async function createScenario(
     .single();
 
   if (error || !data)
-    throw new Error(
-      `シナリオの作成に失敗しました: ${error?.message ?? "不明"}`,
-    );
+    throwSafe("シナリオの作成に失敗しました", error);
   return mapScenario(data as Record<string, unknown>);
 }
 
@@ -172,9 +171,7 @@ export async function updateScenario(
     .single();
 
   if (error || !data)
-    throw new Error(
-      `シナリオの更新に失敗しました: ${error?.message ?? "不明"}`,
-    );
+    throwSafe("シナリオの更新に失敗しました", error);
   return mapScenario(data as Record<string, unknown>);
 }
 
@@ -186,7 +183,7 @@ export async function deleteScenario(id: string): Promise<void> {
     .delete()
     .eq("id", id);
   if (error)
-    throw new Error(`シナリオの削除に失敗しました: ${error.message}`);
+    throwSafe("シナリオの削除に失敗しました", error);
 }
 
 /** ステップ一覧（step_number 昇順） */
@@ -199,7 +196,7 @@ export async function listSteps(scenarioId: string): Promise<StepRow[]> {
     .order("step_number", { ascending: true });
 
   if (error)
-    throw new Error(`ステップ一覧の取得に失敗しました: ${error.message}`);
+    throwSafe("ステップ一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapStep(r as Record<string, unknown>));
 }
 
@@ -233,9 +230,7 @@ export async function addStep(input: CreateStepInput): Promise<StepRow> {
     .single();
 
   if (error || !data)
-    throw new Error(
-      `ステップの追加に失敗しました: ${error?.message ?? "不明"}`,
-    );
+    throwSafe("ステップの追加に失敗しました", error);
   return mapStep(data as Record<string, unknown>);
 }
 
@@ -258,9 +253,7 @@ export async function updateStep(
     .single();
 
   if (error || !data)
-    throw new Error(
-      `ステップの更新に失敗しました: ${error?.message ?? "不明"}`,
-    );
+    throwSafe("ステップの更新に失敗しました", error);
   return mapStep(data as Record<string, unknown>);
 }
 
@@ -272,7 +265,7 @@ export async function deleteStep(id: string): Promise<void> {
     .delete()
     .eq("id", id);
   if (error)
-    throw new Error(`ステップの削除に失敗しました: ${error.message}`);
+    throwSafe("ステップの削除に失敗しました", error);
 }
 
 export interface CustomerScenarioLog {

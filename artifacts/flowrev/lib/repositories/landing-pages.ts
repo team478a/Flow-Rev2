@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface LandingPageRow {
   id: string;
@@ -14,6 +15,10 @@ export interface LandingPageRow {
   aiGenerated: boolean;
   clientId: string;
   whiteLabelId: string;
+  designStyleName: string | null;
+  designColorPrimary: string | null;
+  designColorBg: string | null;
+  designColorAccent: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +31,10 @@ export interface CreateLandingPageInput {
   status: string;
   clientId: string;
   whiteLabelId: string;
+  designStyleName?: string;
+  designColorPrimary?: string;
+  designColorBg?: string;
+  designColorAccent?: string;
 }
 
 export interface UpdateLandingPageInput {
@@ -51,13 +60,17 @@ function mapRow(r: Record<string, unknown>): LandingPageRow {
     aiGenerated: (r.ai_generated as boolean) ?? false,
     clientId: r.client_id as string,
     whiteLabelId: r.white_label_id as string,
+    designStyleName: (r.design_style_name as string) ?? null,
+    designColorPrimary: (r.design_color_primary as string) ?? null,
+    designColorBg: (r.design_color_bg as string) ?? null,
+    designColorAccent: (r.design_color_accent as string) ?? null,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
 }
 
 const SELECT_COLS =
-  "id, title, slug, html_content, product_id, line_add_url, status, views, conversions, ai_generated, client_id, white_label_id, created_at, updated_at";
+  "id, title, slug, html_content, product_id, line_add_url, status, views, conversions, ai_generated, client_id, white_label_id, design_style_name, design_color_primary, design_color_bg, design_color_accent, created_at, updated_at";
 
 /** LP一覧を取得する（新しい順）。RLS で自テナントのみ。 */
 export async function listLandingPages(): Promise<LandingPageRow[]> {
@@ -67,7 +80,7 @@ export async function listLandingPages(): Promise<LandingPageRow[]> {
     .select(SELECT_COLS)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`LP一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("LP一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
 }
 
@@ -80,7 +93,7 @@ export async function getLandingPage(id: string): Promise<LandingPageRow | null>
     .eq("id", id)
     .maybeSingle();
 
-  if (error) throw new Error(`LPの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("LPの取得に失敗しました", error);
   if (!data) return null;
   return mapRow(data as Record<string, unknown>);
 }
@@ -91,6 +104,10 @@ export interface PublicLandingPage {
   title: string;
   slug: string;
   htmlContent: string | null;
+  designStyleName: string | null;
+  designColorPrimary: string | null;
+  designColorBg: string | null;
+  designColorAccent: string | null;
 }
 
 /**
@@ -105,11 +122,13 @@ export async function getPublishedLandingPageBySlug(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("public_landing_pages")
-    .select("id, title, slug, html_content")
+    .select(
+      "id, title, slug, html_content, design_style_name, design_color_primary, design_color_bg, design_color_accent",
+    )
     .eq("slug", slug)
     .maybeSingle();
 
-  if (error) throw new Error(`LPの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("LPの取得に失敗しました", error);
   if (!data) return null;
   const r = data as Record<string, unknown>;
   return {
@@ -117,6 +136,10 @@ export async function getPublishedLandingPageBySlug(
     title: r.title as string,
     slug: r.slug as string,
     htmlContent: (r.html_content as string) ?? null,
+    designStyleName: (r.design_style_name as string) ?? null,
+    designColorPrimary: (r.design_color_primary as string) ?? null,
+    designColorBg: (r.design_color_bg as string) ?? null,
+    designColorAccent: (r.design_color_accent as string) ?? null,
   };
 }
 
@@ -135,12 +158,16 @@ export async function createLandingPage(
       status: input.status,
       client_id: input.clientId,
       white_label_id: input.whiteLabelId,
+      design_style_name: input.designStyleName ?? null,
+      design_color_primary: input.designColorPrimary ?? null,
+      design_color_bg: input.designColorBg ?? null,
+      design_color_accent: input.designColorAccent ?? null,
     })
     .select(SELECT_COLS)
     .single();
 
   if (error || !data)
-    throw new Error(`LPの作成に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("LPの作成に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -168,7 +195,7 @@ export async function updateLandingPage(
     .single();
 
   if (error || !data)
-    throw new Error(`LPの更新に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("LPの更新に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -176,7 +203,7 @@ export async function updateLandingPage(
 export async function deleteLandingPage(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("landing_pages").delete().eq("id", id);
-  if (error) throw new Error(`LPの削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("LPの削除に失敗しました", error);
 }
 
 /**

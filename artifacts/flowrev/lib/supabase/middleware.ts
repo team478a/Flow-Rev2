@@ -30,6 +30,29 @@ function isPublicPath(pathname: string): boolean {
   );
 }
 
+const UNSAFE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
+
+/**
+ * CSRF対策: Cookie（Supabaseセッション）で認証される状態変更系 /api/* リクエストに対し、
+ * Origin ヘッダーが自サイトと一致しない場合は拒否する。
+ * Origin ヘッダー自体が送信されない場合（Webhook・サーバー間通信等、Cookie認証を
+ * 使わない呼び出し）はここでは判定しない — isPublicPath() で個別に除外している
+ * /api/webhooks, /api/admin/cron, /api/p はそもそも Cookie セッションに依存しない。
+ */
+function isCrossOriginMutation(request: NextRequest): boolean {
+  if (!UNSAFE_METHODS.has(request.method)) return false;
+  if (!request.nextUrl.pathname.startsWith("/api/")) return false;
+
+  const origin = request.headers.get("origin");
+  if (!origin) return false;
+
+  try {
+    return new URL(origin).host !== request.nextUrl.host;
+  } catch {
+    return true;
+  }
+}
+
 /**
  * リダイレクト時に、リフレッシュ済みの Cookie を引き継ぐ。
  * 別の Response を返すと supabaseResponse の Cookie が失われるため必須。
@@ -51,6 +74,10 @@ function redirectWithCookies(
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({ request });
 
+  if (!isPublicPath(request.nextUrl.pathname) && isCrossOriginMutation(request)) {
+    return NextResponse.json({ error: "Invalid origin." }, { status: 403 });
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -68,8 +95,12 @@ export async function updateSession(request: NextRequest) {
           request.cookies.set(name, value),
         );
         supabaseResponse = NextResponse.next({ request });
+        // sameSite を明示指定し、ライブラリ側のデフォルト挙動に依存しない（CSRF対策）。
         cookiesToSet.forEach(({ name, value, options }) =>
-          supabaseResponse.cookies.set(name, value, options),
+          supabaseResponse.cookies.set(name, value, {
+            ...options,
+            sameSite: options?.sameSite ?? "lax",
+          }),
         );
       },
     },
