@@ -27,7 +27,9 @@ export function createClient() {
       setAll(cookiesToSet) {
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
-            cookieStore.set(name, value, options);
+            // sameSite を明示指定し、ライブラリ側のデフォルト挙動に依存しない
+            // （CSRF対策。クロスサイトのPOST/fetchにCookieを付与させない）。
+            cookieStore.set(name, value, { ...options, sameSite: options?.sameSite ?? "lax" });
           });
         } catch {
           // Server Component から呼ばれた場合は set 不可。
