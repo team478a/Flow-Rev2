@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionProfile } from "@/features/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
   listPendingDueLogs,
@@ -14,23 +14,34 @@ import { sendLinePushMessage } from "@/lib/line/client";
  * POST /api/admin/scenarios/execute[?force=true]
  * シナリオの pending ログを処理してメール or LINE を送信する。
  * force=true のとき delay_days を無視して即時実行（テスト用）。
- * 認証済みユーザーのみ実行可能。
+ *
+ * client_owner は自テナント（自分の client_id）が所有するシナリオのログのみ実行できる。
+ * system_admin は全テナントを対象に実行できる。それ以外のロール（customer 等）は 403。
  */
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
+  const session = await getSessionProfile();
+  if (!session) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
+  }
+  if (session.role !== "system_admin" && session.role !== "client_owner") {
+    return NextResponse.json(
+      { error: "この操作を行う権限がありません。" },
+      { status: 403 },
+    );
+  }
+  if (session.role === "client_owner" && !session.clientId) {
+    return NextResponse.json(
+      { error: "クライアント情報が見つかりません。" },
+      { status: 400 },
+    );
   }
 
   const force = req.nextUrl.searchParams.get("force") === "true";
+  const scopeClientId = session.role === "client_owner" ? session.clientId! : undefined;
 
   let logs: Awaited<ReturnType<typeof listPendingDueLogs>>;
   try {
-    logs = await listPendingDueLogs(force);
+    logs = await listPendingDueLogs(force, scopeClientId);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "ログ取得に失敗しました。";
     return NextResponse.json({ error: msg }, { status: 500 });
