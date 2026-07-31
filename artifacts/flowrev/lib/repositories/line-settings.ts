@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface LineSettingsMasked {
   hasChannelAccessToken: boolean;
@@ -31,7 +32,7 @@ export async function getLineSettingsMasked(
     .eq("client_id", clientId)
     .maybeSingle();
 
-  if (error) throw new Error(`LINE設定の取得に失敗: ${error.message}`);
+  if (error) throwSafe("LINE設定の取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -53,7 +54,7 @@ export async function getLineSettingsResolved(
     .eq("client_id", clientId)
     .maybeSingle();
 
-  if (error) throw new Error(`LINE設定の取得に失敗: ${error.message}`);
+  if (error) throwSafe("LINE設定の取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -115,13 +116,13 @@ export async function upsertLineSettings(
       .from("line_accounts")
       .update(payload)
       .eq("client_id", clientId);
-    if (error) throw new Error(`LINE設定の更新に失敗: ${error.message}`);
+    if (error) throwSafe("LINE設定の更新に失敗", error);
   } else {
     const { error } = await admin.from("line_accounts").insert({
       ...payload,
       client_id: clientId,
       white_label_id: whiteLabelId,
     });
-    if (error) throw new Error(`LINE設定の作成に失敗: ${error.message}`);
+    if (error) throwSafe("LINE設定の作成に失敗", error);
   }
 }

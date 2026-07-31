@@ -4,6 +4,7 @@
  */
 import { createAdminClient } from "@/lib/supabase/admin";
 import type { CourseRow, LessonRow } from "@/lib/repositories/courses";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 function mapCourse(r: Record<string, unknown>): CourseRow {
   return {
@@ -56,7 +57,7 @@ export async function listPublishedCourses(
     .eq("status", "published")
     .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(`コース一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("コース一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => {
     const row = r as Record<string, unknown>;
     const ls = row.lessons as Array<{ count: number }> | undefined;
@@ -78,7 +79,7 @@ export async function getPublishedCourse(
     .eq("status", "published")
     .maybeSingle();
 
-  if (error) throw new Error(`コースの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("コースの取得に失敗しました", error);
   if (!data) return null;
   return mapCourse(data as Record<string, unknown>);
 }
@@ -95,6 +96,6 @@ export async function listPublishedLessons(
     .eq("status", "published")
     .order("sort_order", { ascending: true });
 
-  if (error) throw new Error(`レッスン一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("レッスン一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapLesson(r as Record<string, unknown>));
 }

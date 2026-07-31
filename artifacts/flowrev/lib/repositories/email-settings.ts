@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 const PROVIDER = "resend";
 
@@ -59,7 +60,7 @@ export async function upsertHqEmailSetting(
       .update(payload)
       .eq("id", existing.id);
     if (error) {
-      throw new Error(`メール設定の更新に失敗しました: ${error.message}`);
+      throwSafe("メール設定の更新に失敗しました", error);
     }
     return;
   }
@@ -68,7 +69,7 @@ export async function upsertHqEmailSetting(
     .from("email_settings")
     .insert({ ...payload, white_label_id: null });
   if (error) {
-    throw new Error(`メール設定の作成に失敗しました: ${error.message}`);
+    throwSafe("メール設定の作成に失敗しました", error);
   }
 }
 
@@ -85,7 +86,7 @@ export async function getHqEmailSettingMasked(): Promise<EmailSettingMasked | nu
     .maybeSingle();
 
   if (error) {
-    throw new Error(`メール設定の取得に失敗しました: ${error.message}`);
+    throwSafe("メール設定の取得に失敗しました", error);
   }
   if (!data) return null;
 
@@ -115,7 +116,7 @@ export async function getActiveEmailSetting(
       .eq("is_active", true)
       .maybeSingle();
     if (error) {
-      throw new Error(`メール設定の取得に失敗しました: ${error.message}`);
+      throwSafe("メール設定の取得に失敗しました", error);
     }
     if (data?.api_key_enc) {
       return {
@@ -135,7 +136,7 @@ export async function getActiveEmailSetting(
     .eq("is_active", true)
     .maybeSingle();
   if (error) {
-    throw new Error(`メール設定の取得に失敗しました: ${error.message}`);
+    throwSafe("メール設定の取得に失敗しました", error);
   }
   if (!data?.api_key_enc) return null;
 

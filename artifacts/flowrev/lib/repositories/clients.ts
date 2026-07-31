@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface ClientRow {
   id: string;
@@ -43,7 +44,7 @@ export async function listClientsForWL(whiteLabelId: string): Promise<ClientRow[
     .eq("white_label_id", whiteLabelId)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`クライアント一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("クライアント一覧の取得に失敗しました", error);
 
   return (data ?? []).map((r) => ({
     id: r.id as string,
@@ -67,7 +68,7 @@ export async function getClient(id: string, whiteLabelId: string): Promise<Clien
     .eq("white_label_id", whiteLabelId)
     .maybeSingle();
 
-  if (error) throw new Error(`取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("取得に失敗しました", error);
   if (!data) return null;
 
   return {
@@ -95,7 +96,7 @@ export async function updateClient(
     .eq("id", id)
     .eq("white_label_id", whiteLabelId);
 
-  if (error) throw new Error(`更新に失敗しました: ${error.message}`);
+  if (error) throwSafe("更新に失敗しました", error);
 }
 
 /**
@@ -113,7 +114,7 @@ export async function toggleClientStatus(
     .eq("id", id)
     .eq("white_label_id", whiteLabelId);
 
-  if (error) throw new Error(`ステータス変更に失敗しました: ${error.message}`);
+  if (error) throwSafe("ステータス変更に失敗しました", error);
 }
 
 /**
@@ -139,9 +140,7 @@ export async function createClientForOwner(
     .single();
 
   if (error || !data) {
-    throw new Error(
-      `クライアントの作成に失敗しました: ${error?.message ?? "不明なエラー"}`,
-    );
+    throwSafe("クライアントの作成に失敗しました", error);
   }
 
   const clientId = data.id as string;

@@ -193,7 +193,9 @@ export async function POST(req: NextRequest) {
         .eq("email", email)
         .eq("client_id", clientId);
     } else if (inviteError) {
-      console.warn(`[LP register] invite skipped for ${email}: ${inviteError.message}`);
+      console.warn(
+        `[LP register] invite skipped for lp ${lpId} (client ${clientId}): ${inviteError.message}`,
+      );
     }
   } catch {
     // 招待エラーは登録成功に影響させない

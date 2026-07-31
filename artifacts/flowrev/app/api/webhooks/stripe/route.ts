@@ -130,7 +130,7 @@ export async function POST(req: NextRequest) {
             .eq("client_id", clientId);
         } else if (inviteError) {
           console.warn(
-            `[Stripe Webhook] invite skipped for ${customerEmail}: ${inviteError.message}`,
+            `[Stripe Webhook] invite skipped for session ${stripeSessionId} (client ${clientId}): ${inviteError.message}`,
           );
         }
       } catch {

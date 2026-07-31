@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface ProductRow {
   id: string;
@@ -71,7 +72,7 @@ export async function listProducts(): Promise<ProductRow[]> {
     )
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`商品一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("商品一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
 }
 
@@ -88,7 +89,7 @@ export async function getProduct(id: string): Promise<ProductRow | null> {
     .eq("id", id)
     .maybeSingle();
 
-  if (error) throw new Error(`商品の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("商品の取得に失敗しました", error);
   if (!data) return null;
   return mapRow(data as Record<string, unknown>);
 }
@@ -119,7 +120,7 @@ export async function createProduct(
     .single();
 
   if (error || !data)
-    throw new Error(`商品の作成に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("商品の作成に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -153,7 +154,7 @@ export async function updateProduct(
     .single();
 
   if (error || !data)
-    throw new Error(`商品の更新に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("商品の更新に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -163,5 +164,5 @@ export async function updateProduct(
 export async function deleteProduct(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("products").delete().eq("id", id);
-  if (error) throw new Error(`商品の削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("商品の削除に失敗しました", error);
 }

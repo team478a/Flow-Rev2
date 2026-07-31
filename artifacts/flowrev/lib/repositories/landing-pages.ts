@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface LandingPageRow {
   id: string;
@@ -67,7 +68,7 @@ export async function listLandingPages(): Promise<LandingPageRow[]> {
     .select(SELECT_COLS)
     .order("created_at", { ascending: false });
 
-  if (error) throw new Error(`LP一覧の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("LP一覧の取得に失敗しました", error);
   return (data ?? []).map((r) => mapRow(r as Record<string, unknown>));
 }
 
@@ -80,7 +81,7 @@ export async function getLandingPage(id: string): Promise<LandingPageRow | null>
     .eq("id", id)
     .maybeSingle();
 
-  if (error) throw new Error(`LPの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("LPの取得に失敗しました", error);
   if (!data) return null;
   return mapRow(data as Record<string, unknown>);
 }
@@ -109,7 +110,7 @@ export async function getPublishedLandingPageBySlug(
     .eq("slug", slug)
     .maybeSingle();
 
-  if (error) throw new Error(`LPの取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("LPの取得に失敗しました", error);
   if (!data) return null;
   const r = data as Record<string, unknown>;
   return {
@@ -140,7 +141,7 @@ export async function createLandingPage(
     .single();
 
   if (error || !data)
-    throw new Error(`LPの作成に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("LPの作成に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -168,7 +169,7 @@ export async function updateLandingPage(
     .single();
 
   if (error || !data)
-    throw new Error(`LPの更新に失敗しました: ${error?.message ?? "不明"}`);
+    throwSafe("LPの更新に失敗しました", error);
   return mapRow(data as Record<string, unknown>);
 }
 
@@ -176,7 +177,7 @@ export async function updateLandingPage(
 export async function deleteLandingPage(id: string): Promise<void> {
   const supabase = createClient();
   const { error } = await supabase.from("landing_pages").delete().eq("id", id);
-  if (error) throw new Error(`LPの削除に失敗しました: ${error.message}`);
+  if (error) throwSafe("LPの削除に失敗しました", error);
 }
 
 /**

@@ -1,6 +1,7 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export interface StripeSettingsMasked {
   hasSecretKey: boolean;
@@ -31,7 +32,7 @@ export async function getStripeSettingsMasked(
     .eq("client_id", clientId)
     .maybeSingle();
 
-  if (error) throw new Error(`Stripe設定の取得に失敗: ${error.message}`);
+  if (error) throwSafe("Stripe設定の取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -53,7 +54,7 @@ export async function getStripeSettingsResolved(
     .eq("client_id", clientId)
     .maybeSingle();
 
-  if (error) throw new Error(`Stripe設定の取得に失敗: ${error.message}`);
+  if (error) throwSafe("Stripe設定の取得に失敗", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -116,13 +117,13 @@ export async function upsertStripeSettings(
       .from("stripe_accounts")
       .update(payload)
       .eq("client_id", clientId);
-    if (error) throw new Error(`Stripe設定の更新に失敗: ${error.message}`);
+    if (error) throwSafe("Stripe設定の更新に失敗", error);
   } else {
     const { error } = await admin.from("stripe_accounts").insert({
       ...payload,
       client_id: clientId,
       white_label_id: whiteLabelId,
     });
-    if (error) throw new Error(`Stripe設定の作成に失敗: ${error.message}`);
+    if (error) throwSafe("Stripe設定の作成に失敗", error);
   }
 }

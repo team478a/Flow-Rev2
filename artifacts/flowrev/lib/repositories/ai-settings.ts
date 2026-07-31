@@ -1,5 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
+import { throwSafe } from "@/lib/repositories/error-utils";
 
 export type AiProvider = "anthropic" | "openai";
 
@@ -41,7 +42,7 @@ export async function getActiveAiSetting(
     .is("white_label_id", null)
     .maybeSingle();
 
-  if (error) throw new Error(`AI設定の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("AI設定の取得に失敗しました", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -67,7 +68,7 @@ export async function getHqAiSettingMasked(
     .is("white_label_id", null)
     .maybeSingle();
 
-  if (error) throw new Error(`AI設定の取得に失敗しました: ${error.message}`);
+  if (error) throwSafe("AI設定の取得に失敗しました", error);
   if (!data) return null;
 
   const row = data as Record<string, unknown>;
@@ -111,12 +112,12 @@ export async function upsertHqAiSetting(
       .update(payload)
       .eq("id", row.id as string);
     if (error)
-      throw new Error(`AI設定の更新に失敗しました: ${error.message}`);
+      throwSafe("AI設定の更新に失敗しました", error);
   } else {
     const { error } = await supabase
       .from("ai_provider_settings")
       .insert({ ...payload, white_label_id: null });
     if (error)
-      throw new Error(`AI設定の作成に失敗しました: ${error.message}`);
+      throwSafe("AI設定の作成に失敗しました", error);
   }
 }
