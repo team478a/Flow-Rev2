@@ -24,6 +24,63 @@ function extFromMime(mime: AllowedMime): string {
 }
 
 /**
+ * ファイル先頭バイト（マジックナンバー）から実際の画像形式を判定する。
+ * クライアントが申告する Content-Type は偽装できるため、保存前に実バイト列で
+ * 二重チェックする（任意ファイルアップロード対策）。
+ */
+function detectImageMimeFromBytes(bytes: Uint8Array): AllowedMime | null {
+  if (
+    bytes.length >= 3 &&
+    bytes[0] === 0xff &&
+    bytes[1] === 0xd8 &&
+    bytes[2] === 0xff
+  ) {
+    return "image/jpeg";
+  }
+  if (
+    bytes.length >= 8 &&
+    bytes[0] === 0x89 &&
+    bytes[1] === 0x50 &&
+    bytes[2] === 0x4e &&
+    bytes[3] === 0x47 &&
+    bytes[4] === 0x0d &&
+    bytes[5] === 0x0a &&
+    bytes[6] === 0x1a &&
+    bytes[7] === 0x0a
+  ) {
+    return "image/png";
+  }
+  if (
+    bytes.length >= 12 &&
+    bytes[0] === 0x52 && // R
+    bytes[1] === 0x49 && // I
+    bytes[2] === 0x46 && // F
+    bytes[3] === 0x46 && // F
+    bytes[8] === 0x57 && // W
+    bytes[9] === 0x45 && // E
+    bytes[10] === 0x42 && // B
+    bytes[11] === 0x50 // P
+  ) {
+    return "image/webp";
+  }
+  return null;
+}
+
+/**
+ * 申告された MIME タイプと、実際のファイル先頭バイトから判定した形式が一致するか
+ * 検証する。不一致・判定不能の場合は例外を投げる。
+ */
+function assertMatchesDeclaredMime(bytes: Uint8Array, declaredMime: AllowedMime): void {
+  const actual = detectImageMimeFromBytes(bytes);
+  if (actual === null) {
+    throw new Error("ファイルの形式を確認できませんでした。JPG・PNG・WebP画像を選択してください。");
+  }
+  if (actual !== declaredMime) {
+    throw new Error("ファイルの内容が申告された形式と一致しません。");
+  }
+}
+
+/**
  * 商品サムネイルを Storage にアップロードする。
  * パス: `{clientId}/{uuid}.{ext}`
  * @returns Storage 上のファイルパス（DB に保存する値）
@@ -42,6 +99,7 @@ export async function uploadProductImage(
   const ext = extFromMime(file.type);
   const path = `${clientId}/${randomUUID()}.${ext}`;
   const arrayBuffer = await file.arrayBuffer();
+  assertMatchesDeclaredMime(new Uint8Array(arrayBuffer), file.type);
 
   const supabase = createAdminClient();
   const { error } = await supabase.storage
@@ -101,6 +159,8 @@ export async function uploadLpImage(
   if (buffer.byteLength > MAX_BYTES) {
     throw new Error("ファイルサイズは 5MB 以内にしてください。");
   }
+
+  assertMatchesDeclaredMime(new Uint8Array(buffer), mimeType as AllowedMime);
 
   const ext = extFromMime(mimeType as AllowedMime);
   const path = `${userId}/${randomUUID()}.${ext}`;
