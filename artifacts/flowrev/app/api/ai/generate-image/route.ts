@@ -3,6 +3,7 @@ import OpenAI from "openai";
 import { createClient } from "@/lib/supabase/server";
 import { getActiveAiSetting } from "@/lib/repositories/ai-settings";
 import { uploadLpImage, getLpImagePublicUrl } from "@/lib/storage";
+import { checkAiGenerationLimit } from "@/lib/rate-limit";
 
 const DALLE_MODEL = "dall-e-3";
 const IMAGE_SIZE = "1024x1024" as const;
@@ -12,6 +13,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
+  }
+
+  const rateLimit = await checkAiGenerationLimit(user.id);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "AI生成のリクエストが多すぎます。しばらく待ってから再度お試しください。" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? 60) } },
+    );
   }
 
   let prompt = "";

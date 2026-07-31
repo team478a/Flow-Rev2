@@ -4,6 +4,7 @@ import { isIP } from "node:net";
 import { createClient } from "@/lib/supabase/server";
 import { generateLpHtml } from "@/lib/ai/client";
 import { generateLpCss, buildDesignedLpPrompt, type LpColorConfig } from "@/lib/ai/lp-design-system";
+import { checkAiGenerationLimit } from "@/lib/rate-limit";
 
 const REFERENCE_MAX_CHARS = 3000;
 const FETCH_TIMEOUT_MS = 8000;
@@ -114,6 +115,14 @@ export async function POST(req: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
+  }
+
+  const rateLimit = await checkAiGenerationLimit(user.id);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "AI生成のリクエストが多すぎます。しばらく待ってから再度お試しください。" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? 60) } },
+    );
   }
 
   let title = "";

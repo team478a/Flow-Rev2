@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { generateText, buildProductPrompt } from "@/lib/ai/client";
+import { checkAiGenerationLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
   const supabase = createClient();
@@ -9,6 +10,14 @@ export async function POST(req: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
+  }
+
+  const rateLimit = await checkAiGenerationLimit(user.id);
+  if (!rateLimit.allowed) {
+    return NextResponse.json(
+      { error: "AI生成のリクエストが多すぎます。しばらく待ってから再度お試しください。" },
+      { status: 429, headers: { "Retry-After": String(rateLimit.retryAfterSeconds ?? 60) } },
+    );
   }
 
   let name = "";
