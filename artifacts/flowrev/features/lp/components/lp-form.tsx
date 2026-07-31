@@ -19,6 +19,7 @@ import { LpHtmlEditor } from "@/features/lp/components/lp-html-editor";
 import type { LpActionState } from "@/features/lp/actions";
 import type { LandingPageRow } from "@/lib/repositories/landing-pages";
 import type { ProductRow } from "@/lib/repositories/products";
+import { generateLpCss, isValidHexColor } from "@/lib/ai/lp-design-system";
 
 interface LpFormProps {
   action: (prev: LpActionState, formData: FormData) => Promise<LpActionState>;
@@ -52,6 +53,22 @@ export function LpForm({
     defaultValues?.htmlContent ?? "",
   );
   const [state, formAction] = useFormState(action, initialState);
+
+  // ウィザードで生成されたLPを開いた場合、design_* 列からプレビュー用CSSを
+  // 再生成する（htmlContent 自体には <style> が含まれないため）。
+  const { designStyleName, designColorPrimary, designColorBg, designColorAccent } =
+    defaultValues ?? {};
+  const extraCss =
+    designStyleName &&
+    designColorPrimary &&
+    designColorBg &&
+    designColorAccent &&
+    [designColorPrimary, designColorBg, designColorAccent].every(isValidHexColor)
+      ? generateLpCss(
+          { primary: designColorPrimary, bg: designColorBg, accent: designColorAccent },
+          designStyleName,
+        )
+      : undefined;
 
   useEffect(() => {
     if (state.success === true && successPath) {
@@ -166,6 +183,7 @@ export function LpForm({
           name="htmlContent"
           value={htmlContent}
           onChange={setHtmlContent}
+          extraCss={extraCss}
         />
         <p className="text-xs text-muted-foreground">
           HTMLタグを直接入力できます。右パネルにリアルタイムプレビューが表示されます。

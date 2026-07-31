@@ -9,6 +9,13 @@ export interface LpColorConfig {
   accent: string;
 }
 
+const HEX_COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+
+/** カラー文字列が安全なCSS16進カラー値かどうかを検証する（CSSインジェクション対策） */
+export function isValidHexColor(value: string): boolean {
+  return HEX_COLOR_RE.test(value);
+}
+
 const STYLE_META: Record<string, { radius: string; darkBg: string; font: string }> = {
   モダン:    { radius: "8px",  darkBg: "#111827", font: "-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif" },
   ナチュラル: { radius: "16px", darkBg: "#3d2b1f", font: "'Georgia','Hiragino Mincho Pro',serif" },

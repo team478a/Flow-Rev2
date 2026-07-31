@@ -156,6 +156,10 @@ CREATE TABLE landing_pages (
   views INTEGER DEFAULT 0,
   conversions INTEGER DEFAULT 0,
   ai_generated BOOLEAN DEFAULT FALSE,
+  design_style_name TEXT,
+  design_color_primary TEXT,
+  design_color_bg TEXT,
+  design_color_accent TEXT,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   UNIQUE(client_id, slug)
@@ -822,7 +826,9 @@ CREATE TRIGGER on_auth_user_created
 -- 10: 公開LP ビュー（anon 向け）
 -- ============================================================
 CREATE OR REPLACE VIEW public_landing_pages AS
-SELECT id, title, slug, html_content
+SELECT
+  id, title, slug, html_content,
+  design_style_name, design_color_primary, design_color_bg, design_color_accent
 FROM landing_pages
 WHERE status = 'published';
 

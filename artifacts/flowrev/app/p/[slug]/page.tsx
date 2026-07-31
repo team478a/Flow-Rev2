@@ -1,8 +1,33 @@
 import { notFound } from "next/navigation";
-import { getPublishedLandingPageBySlug } from "@/lib/repositories/landing-pages";
+import {
+  getPublishedLandingPageBySlug,
+  type PublicLandingPage,
+} from "@/lib/repositories/landing-pages";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { sanitizeLpHtml } from "@/lib/sanitize";
+import { generateLpCss, isValidHexColor } from "@/lib/ai/lp-design-system";
 import { LpContactForm } from "@/features/lp/components/lp-contact-form";
+
+/**
+ * LP保存時に別列として保存されたデザイン設定からCSSを組み立てる。
+ * これはアプリ自身が生成する信頼できる文字列であり、AI/ユーザー制御下の
+ * html_content とは別に（サニタイザーを経由せず）配信する
+ * （docs/audit/05_SECURITY_FINDINGS.md L-2 の修正）。
+ * 列が未設定（旧データ・自由編集で作成されたLP）の場合は何も返さない。
+ */
+function buildTrustedLpCss(lp: PublicLandingPage): string | null {
+  const { designStyleName, designColorPrimary, designColorBg, designColorAccent } = lp;
+  if (!designStyleName || !designColorPrimary || !designColorBg || !designColorAccent) {
+    return null;
+  }
+  if (![designColorPrimary, designColorBg, designColorAccent].every(isValidHexColor)) {
+    return null;
+  }
+  return generateLpCss(
+    { primary: designColorPrimary, bg: designColorBg, accent: designColorAccent },
+    designStyleName,
+  );
+}
 
 interface Props {
   params: { slug: string };
@@ -95,9 +120,14 @@ export default async function PublicLpPage({ params }: Props) {
   ]);
 
   const isPaid = !!product;
+  const trustedCss = buildTrustedLpCss(lp);
 
   return (
     <div className="min-h-screen bg-white">
+      {/* AIデザインシステムのCSS。html_content（サニタイズ対象）とは別に保存された
+          design_* 列から生成する、アプリ自身が所有する信頼できるスタイルシート。
+          CSSテキストなのでHTMLインジェクションの懸念はなく dangerouslySetInnerHTML は不要。 */}
+      {trustedCss && <style>{trustedCss}</style>}
       <div className="max-w-3xl mx-auto px-4 py-12">
 
         {/* LPコンテンツ（HTML） */}

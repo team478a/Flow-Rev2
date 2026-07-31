@@ -9,6 +9,7 @@ import {
   deleteLandingPage,
 } from "@/lib/repositories/landing-pages";
 import { lpSchema } from "@/features/lp/schema";
+import { sanitizeLpHtml } from "@/lib/sanitize";
 
 export interface LpActionState {
   error: string | null;
@@ -38,6 +39,10 @@ export async function createLpAction(
     productId: rawProductId && rawProductId !== "none" ? rawProductId : undefined,
     htmlContent: formData.get("htmlContent") || undefined,
     status: formData.get("status"),
+    designStyleName: formData.get("designStyleName") || undefined,
+    colorPrimary: formData.get("colorPrimary") || undefined,
+    colorBg: formData.get("colorBg") || undefined,
+    colorAccent: formData.get("colorAccent") || undefined,
   });
 
   if (!parsed.success) {
@@ -46,15 +51,28 @@ export async function createLpAction(
     };
   }
 
+  // 保存時にもサニタイズする（多層防御）。公開ページ側でも sanitizeLpHtml を適用
+  // 済みのため新たに失われる内容はないが、保存直後から一貫した内容にできる
+  // （docs/audit/05_SECURITY_FINDINGS.md C-2 の多層防御。デザインCSSは別列に
+  // 分離済みのため、ここでのサニタイズがAIデザインシステムを壊すことはない）。
+  const sanitizedHtmlContent =
+    parsed.data.htmlContent !== undefined
+      ? sanitizeLpHtml(parsed.data.htmlContent)
+      : undefined;
+
   try {
     const lp = await createLandingPage({
       title: parsed.data.title,
       slug: parsed.data.slug,
       productId: parsed.data.productId || undefined,
-      htmlContent: parsed.data.htmlContent,
+      htmlContent: sanitizedHtmlContent,
       status: parsed.data.status,
       clientId: session.clientId,
       whiteLabelId: session.whiteLabelId,
+      designStyleName: parsed.data.designStyleName || undefined,
+      designColorPrimary: parsed.data.colorPrimary || undefined,
+      designColorBg: parsed.data.colorBg || undefined,
+      designColorAccent: parsed.data.colorAccent || undefined,
     });
     revalidatePath("/lp");
     redirect(`/lp/${lp.id}`);
@@ -95,12 +113,18 @@ export async function updateLpAction(
 
   const lineAddUrl = ((formData.get("lineAddUrl") as string | null) ?? "").trim() || null;
 
+  // 保存時にもサニタイズする（多層防御）。詳細は createLpAction のコメント参照。
+  const sanitizedHtmlContent =
+    parsed.data.htmlContent !== undefined
+      ? sanitizeLpHtml(parsed.data.htmlContent)
+      : undefined;
+
   try {
     await updateLandingPage(id, {
       title: parsed.data.title,
       slug: parsed.data.slug,
       productId: parsed.data.productId ?? null,
-      htmlContent: parsed.data.htmlContent,
+      htmlContent: sanitizedHtmlContent,
       lineAddUrl,
       status: parsed.data.status,
     });

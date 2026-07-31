@@ -3,7 +3,12 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import { createClient } from "@/lib/supabase/server";
 import { generateLpHtml } from "@/lib/ai/client";
-import { generateLpCss, buildDesignedLpPrompt, type LpColorConfig } from "@/lib/ai/lp-design-system";
+import {
+  generateLpCss,
+  buildDesignedLpPrompt,
+  isValidHexColor,
+  type LpColorConfig,
+} from "@/lib/ai/lp-design-system";
 import { checkAiGenerationLimit } from "@/lib/rate-limit";
 
 const REFERENCE_MAX_CHARS = 3000;
@@ -146,6 +151,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "リクエストが不正です。" }, { status: 400 });
   }
 
+  // カラー値はCSSへ直接埋め込むため、16進カラー以外を拒否する（CSSインジェクション対策）。
+  if (![colorPrimary, colorBg, colorAccent].every(isValidHexColor)) {
+    return NextResponse.json(
+      { error: "カラー値の形式が不正です。" },
+      { status: 400 },
+    );
+  }
+
   if (!title) {
     return NextResponse.json(
       { error: "ページタイトルを入力してから生成してください。" },
@@ -177,9 +190,23 @@ export async function POST(req: NextRequest) {
   try {
     const rawHtml = await generateLpHtml(prompt);
     const bodyHtml = stripCodeFence(rawHtml);
-    // CSS をサーバー側で結合して返す
+    // text: 従来互換（HTML詳細編集フォームの自由入力欄向け、<style>込みの単一文字列）。
+    // html/css/design: ウィザード用。CSSをHTML本文と分離して返し、保存時も別列に
+    // 持たせることで、公開ページのサニタイザーが <style> タグを除去しても
+    // デザインが失われないようにする（docs/audit/05_SECURITY_FINDINGS.md L-2）。
     const text = `<style>${css}</style>\n${bodyHtml}`;
-    return NextResponse.json({ text, referenceWarning });
+    return NextResponse.json({
+      text,
+      html: bodyHtml,
+      css,
+      design: {
+        styleName: designStyleName,
+        colorPrimary,
+        colorBg,
+        colorAccent,
+      },
+      referenceWarning,
+    });
   } catch (e) {
     const message = e instanceof Error ? e.message : "生成に失敗しました。";
     return NextResponse.json({ error: message }, { status: 500 });

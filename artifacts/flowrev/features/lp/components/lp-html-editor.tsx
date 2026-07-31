@@ -11,6 +11,12 @@ interface LpHtmlEditorProps {
   name: string;
   id: string;
   rows?: number;
+  /**
+   * ウィザードで生成したLPを開いた場合の、design_* 列から再生成された
+   * アプリ所有のCSS。htmlContent 自体に <style> が含まれない場合のみ
+   * プレビューに適用する（既に <style> があるものと二重適用しないため）。
+   */
+  extraCss?: string;
 }
 
 /** マークダウンのコードフェンス（```html ... ```）を取り除く */
@@ -26,15 +32,18 @@ function stripCodeFence(html: string): string {
 /**
  * プレビュー用 HTML ドキュメントを構築する。
  * - HTML に <style> タグが含まれる場合は最小 CSS のみラップ（競合防止）
- * - 含まれない場合は読みやすい基本スタイルをラップ
+ * - 含まれず extraCss（ウィザードのデザイン設定由来）がある場合はそれを適用する
+ * - どちらもない場合は読みやすい基本スタイルをラップ
  */
-function buildPreviewDoc(rawHtml: string): string {
+function buildPreviewDoc(rawHtml: string, extraCss?: string): string {
   const html = stripCodeFence(rawHtml);
   const hasStyle = /<style[\s>]/i.test(html);
 
   const baseCss = hasStyle
     ? "*,*::before,*::after{box-sizing:border-box;}body{margin:0;}img{max-width:100%;height:auto;}"
-    : `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    : extraCss
+      ? `*,*::before,*::after{box-sizing:border-box;}body{margin:0;}img{max-width:100%;height:auto;}${extraCss}`
+      : `body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
     margin:0;padding:24px;color:#1a1a1a;line-height:1.7;font-size:15px;}
     h1,h2,h3{line-height:1.3;margin-top:1.5em;margin-bottom:.5em;}
     h1{font-size:1.8em;}h2{font-size:1.4em;}h3{font-size:1.2em;}
@@ -61,8 +70,8 @@ function buildPreviewDoc(rawHtml: string): string {
  * DOM API 経由で埋め込むことで、未サニタイズ HTML 内のスクリプトが一切実行されない
  * ようにする。
  */
-function openPreviewInNewTab(rawHtml: string) {
-  const doc = buildPreviewDoc(rawHtml);
+function openPreviewInNewTab(rawHtml: string, extraCss?: string) {
+  const doc = buildPreviewDoc(rawHtml, extraCss);
   const w = window.open("about:blank", "_blank");
   if (!w) return;
   // 新しいタブから window.opener 経由で元のタブを操作されないようにする
@@ -88,6 +97,7 @@ export function LpHtmlEditor({
   name,
   id,
   rows = 16,
+  extraCss,
 }: LpHtmlEditorProps) {
   const [tab, setTab] = useState<Tab>("edit");
   const [previewDoc, setPreviewDoc] = useState("");
@@ -95,13 +105,13 @@ export function LpHtmlEditor({
 
   useEffect(() => {
     if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(() => setPreviewDoc(buildPreviewDoc(value)), 300);
+    timer.current = setTimeout(() => setPreviewDoc(buildPreviewDoc(value, extraCss)), 300);
     return () => { if (timer.current) clearTimeout(timer.current); };
-  }, [value]);
+  }, [value, extraCss]);
 
   const handleOpenNewTab = useCallback(() => {
-    openPreviewInNewTab(value);
-  }, [value]);
+    openPreviewInNewTab(value, extraCss);
+  }, [value, extraCss]);
 
   /** テキストエリアのカーソル位置に imgHtml を挿入する */
   const handleInsert = useCallback((imgHtml: string) => {

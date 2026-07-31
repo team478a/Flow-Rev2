@@ -15,6 +15,10 @@ export interface LandingPageRow {
   aiGenerated: boolean;
   clientId: string;
   whiteLabelId: string;
+  designStyleName: string | null;
+  designColorPrimary: string | null;
+  designColorBg: string | null;
+  designColorAccent: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -27,6 +31,10 @@ export interface CreateLandingPageInput {
   status: string;
   clientId: string;
   whiteLabelId: string;
+  designStyleName?: string;
+  designColorPrimary?: string;
+  designColorBg?: string;
+  designColorAccent?: string;
 }
 
 export interface UpdateLandingPageInput {
@@ -52,13 +60,17 @@ function mapRow(r: Record<string, unknown>): LandingPageRow {
     aiGenerated: (r.ai_generated as boolean) ?? false,
     clientId: r.client_id as string,
     whiteLabelId: r.white_label_id as string,
+    designStyleName: (r.design_style_name as string) ?? null,
+    designColorPrimary: (r.design_color_primary as string) ?? null,
+    designColorBg: (r.design_color_bg as string) ?? null,
+    designColorAccent: (r.design_color_accent as string) ?? null,
     createdAt: r.created_at as string,
     updatedAt: r.updated_at as string,
   };
 }
 
 const SELECT_COLS =
-  "id, title, slug, html_content, product_id, line_add_url, status, views, conversions, ai_generated, client_id, white_label_id, created_at, updated_at";
+  "id, title, slug, html_content, product_id, line_add_url, status, views, conversions, ai_generated, client_id, white_label_id, design_style_name, design_color_primary, design_color_bg, design_color_accent, created_at, updated_at";
 
 /** LP一覧を取得する（新しい順）。RLS で自テナントのみ。 */
 export async function listLandingPages(): Promise<LandingPageRow[]> {
@@ -92,6 +104,10 @@ export interface PublicLandingPage {
   title: string;
   slug: string;
   htmlContent: string | null;
+  designStyleName: string | null;
+  designColorPrimary: string | null;
+  designColorBg: string | null;
+  designColorAccent: string | null;
 }
 
 /**
@@ -106,7 +122,9 @@ export async function getPublishedLandingPageBySlug(
   const supabase = createClient();
   const { data, error } = await supabase
     .from("public_landing_pages")
-    .select("id, title, slug, html_content")
+    .select(
+      "id, title, slug, html_content, design_style_name, design_color_primary, design_color_bg, design_color_accent",
+    )
     .eq("slug", slug)
     .maybeSingle();
 
@@ -118,6 +136,10 @@ export async function getPublishedLandingPageBySlug(
     title: r.title as string,
     slug: r.slug as string,
     htmlContent: (r.html_content as string) ?? null,
+    designStyleName: (r.design_style_name as string) ?? null,
+    designColorPrimary: (r.design_color_primary as string) ?? null,
+    designColorBg: (r.design_color_bg as string) ?? null,
+    designColorAccent: (r.design_color_accent as string) ?? null,
   };
 }
 
@@ -136,6 +158,10 @@ export async function createLandingPage(
       status: input.status,
       client_id: input.clientId,
       white_label_id: input.whiteLabelId,
+      design_style_name: input.designStyleName ?? null,
+      design_color_primary: input.designColorPrimary ?? null,
+      design_color_bg: input.designColorBg ?? null,
+      design_color_accent: input.designColorAccent ?? null,
     })
     .select(SELECT_COLS)
     .single();

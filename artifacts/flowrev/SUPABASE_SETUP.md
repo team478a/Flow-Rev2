@@ -329,6 +329,20 @@ Step 12（`0008_ai_rls.sql`）で作成したポリシーには不具合があ�
 > ℹ️ `supabase/migrations/_archived/` 内のファイルは、上記いずれのテーブルとも重複し
 > 適用すると衝突するため実行しないでください（詳細は同ディレクトリの README を参照）。
 
+## Step 20 — LPデザインシステム列の追加（AI生成LPの見た目修正）
+
+**ファイル:** `supabase/migrations/0014_lp_design_columns.sql`
+
+「AIでデザイン済みLPを生成する」ウィザードで作成したLPが、公開時に見た目（CSS）が
+丸ごと消えてしまう不具合を修正するための列追加です（`docs/audit/05_SECURITY_FINDINGS.md`
+L-2）。デザイン設定（配色・スタイル名）をHTML本文とは別の列に保存し、CSSはその
+パラメータからアプリが安全に生成する方式に変更しました。`public_landing_pages`
+ビューも合わせて更新されます。
+
+```sql
+-- supabase/migrations/0014_lp_design_columns.sql の内容をコピーして実行
+```
+
 ---
 
 ## 実行順チェックリスト
@@ -354,6 +368,7 @@ Step 12（`0008_ai_rls.sql`）で作成したポリシーには不具合があ�
 | 17 | `0010_stripe_payments.sql`（決済機能を使うなら必須） | ☐ |
 | 18 | `0011_fix_ai_rls_policy.sql`（セキュリティ修正・必須） | ☐ |
 | 19 | `0012_plans_white_label_id.sql` + `0013_clients_plan_id.sql`（必須） | ☐ |
+| 20 | `0014_lp_design_columns.sql`（LPデザイン表示の修正・必須） | ☐ |
 
 ---
 
