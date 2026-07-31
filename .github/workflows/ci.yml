@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  flowrev-typecheck-build:
+    name: flowrev typecheck & build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: artifacts/flowrev/.nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck (flowrev)
+        run: pnpm --filter @workspace/flowrev run typecheck
+
+      # artifacts/mockup-sandbox is a Replit-only design-preview tool (not part of the
+      # Vercel deployment) with its own pre-existing @types/react resolution issue and a
+      # vite.config.ts that requires Replit-specific PORT/BASE_PATH env vars just to load.
+      # It is intentionally excluded here; see docs/audit/01_ARCHITECTURE.md and
+      # docs/audit/03_REPLIT_DEPENDENCY.md for details.
+      - name: Build (flowrev)
+        run: pnpm --filter @workspace/flowrev run build
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: https://ci-placeholder.supabase.co
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-placeholder-anon-key
+          SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-service-role-key
+          ENCRYPTION_KEY: ci-placeholder-encryption-key-32bytes
+          NEXT_PUBLIC_APP_URL: http://localhost:3000
