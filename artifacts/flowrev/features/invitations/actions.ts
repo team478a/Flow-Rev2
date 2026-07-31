@@ -28,16 +28,8 @@ export interface CreateInvitationState {
 }
 
 function buildInviteUrl(token: string): string {
-  // 1. 明示設定を優先
   const explicit = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
   if (explicit) return `${explicit}/register?token=${token}`;
-
-  // 2. Replit 公開ドメインにフォールバック（REPLIT_DOMAINS = "domain1.repl.co,domain2..."）
-  const replitDomains = (process.env.REPLIT_DOMAINS ?? "").trim();
-  if (replitDomains) {
-    const first = replitDomains.split(",")[0]?.trim();
-    if (first) return `https://${first}/register?token=${token}`;
-  }
 
   throw new Error(
     "アプリのURLを自動取得できませんでした。NEXT_PUBLIC_APP_URL 環境変数を設定してください。",
@@ -176,16 +168,7 @@ export async function resendInvitationAction(
   let inviteUrl: string;
   try {
     const { token } = await resendInvitationToken(id, session.whiteLabelId);
-    const explicit = (process.env.NEXT_PUBLIC_APP_URL ?? "").trim().replace(/\/+$/, "");
-    const replitDomains = (process.env.REPLIT_DOMAINS ?? "").trim();
-    if (explicit) {
-      inviteUrl = `${explicit}/register?token=${token}`;
-    } else if (replitDomains) {
-      const first = replitDomains.split(",")[0]?.trim();
-      inviteUrl = `https://${first}/register?token=${token}`;
-    } else {
-      return { error: "NEXT_PUBLIC_APP_URL 環境変数を設定してください。" };
-    }
+    inviteUrl = buildInviteUrl(token);
   } catch (e) {
     return { error: e instanceof Error ? e.message : "再送に失敗しました。" };
   }

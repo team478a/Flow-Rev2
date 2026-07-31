@@ -235,9 +235,9 @@ SQL ではなくダッシュボードの GUI で設定します。
    → 確認メールのテンプレートをブランドに合わせてカスタマイズ（任意）
 
 3. **Authentication → URL Configuration**  
-   → Site URL を本番ドメインまたは Replit プレビュー URL に設定  
+   → Site URL を本番ドメイン（Vercel の Production/Preview URL）に設定  
    → Redirect URLs に `/auth/callback` を追加  
-   例: `https://your-domain.repl.co/auth/callback`
+   例: `https://your-app.vercel.app/auth/callback`
 
 4. **Authentication → Providers → Email → Confirm email**  
    → 開発中は OFF でも可（本番では ON 推奨）
@@ -385,4 +385,4 @@ Step 12（`0008_ai_rls.sql`）で作成したポリシーには不具合があ�
 | `SUPABASE_SERVICE_ROLE_KEY` | Project Settings → API → service_role key | 管理クライアント（サーバー専用・公開厳禁） |
 | `ENCRYPTION_KEY` | 任意の32文字以上の文字列を生成 | AI / メール APIキーの暗号化 |
 | `SESSION_SECRET` | 任意の32文字以上の文字列を生成 | セッション署名 |
-| `NEXT_PUBLIC_APP_URL` | デプロイ後の本番URL | 招待URLの生成（未設定時は REPLIT_DOMAINS を自動使用） |
+| `NEXT_PUBLIC_APP_URL` | デプロイ後の本番URL | 招待URLの生成に必須（未設定の場合は招待の作成・再送がエラーになる） |
