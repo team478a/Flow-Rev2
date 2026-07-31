@@ -48,15 +48,36 @@ function buildPreviewDoc(rawHtml: string): string {
 </head><body>${html}</body></html>`;
 }
 
-/** 現在の HTML を新しいタブで開く（Blob URL 経由） */
+/**
+ * 現在の HTML を新しいタブで開く。
+ *
+ * htmlContent は AI 生成または自由入力の未サニタイズ HTML であり、<script> 等を
+ * 含みうる。以前はこれを same-origin の blob: URL としてタブ本体に直接読み込んで
+ * いたため、埋め込まれたスクリプトが FlowRev アプリと同一オリジンの権限で実行され
+ * てしまう経路になっていた（管理者セッションに対する stored XSS）。
+ *
+ * 新しいタブ自体はこのアプリが完全に制御する空ページとし、その中に既存のライブ
+ * プレビューと同じ sandbox="allow-same-origin"（allow-scripts なし）の iframe を
+ * DOM API 経由で埋め込むことで、未サニタイズ HTML 内のスクリプトが一切実行されない
+ * ようにする。
+ */
 function openPreviewInNewTab(rawHtml: string) {
   const doc = buildPreviewDoc(rawHtml);
-  const blob = new Blob([doc], { type: "text/html" });
-  const url = URL.createObjectURL(blob);
-  const w = window.open(url, "_blank", "noopener,noreferrer");
+  const w = window.open("about:blank", "_blank");
   if (!w) return;
-  // ウィンドウがロードした後に URL を解放
-  setTimeout(() => URL.revokeObjectURL(url), 15000);
+  // 新しいタブから window.opener 経由で元のタブを操作されないようにする
+  w.opener = null;
+
+  w.document.title = "LPプレビュー";
+  const style = w.document.createElement("style");
+  style.textContent = "html,body{margin:0;height:100%;}iframe{display:block;width:100%;height:100%;border:0;}";
+  w.document.head.appendChild(style);
+
+  const iframe = w.document.createElement("iframe");
+  iframe.sandbox.add("allow-same-origin");
+  iframe.title = "LPプレビュー";
+  iframe.srcdoc = doc;
+  w.document.body.appendChild(iframe);
 }
 
 type Tab = "edit" | "preview";
