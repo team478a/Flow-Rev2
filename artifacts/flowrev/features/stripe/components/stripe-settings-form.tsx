@@ -80,6 +80,13 @@ export function StripeSettingsForm({ current }: StripeSettingsFormProps) {
           : "🧪 テストモード：Stripe テストキーを使用してください（sk_test_...）"}
       </p>
 
+      {current?.hasSecretKey && !current?.hasWebhookSecret && (
+        <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded px-3 py-2">
+          ⚠️ Webhook シークレットが未設定です。この状態では決済完了通知を受け取れず、購入者への商品アクセス権付与が行われません。下記の「Webhook
+          シークレット」を必ず設定してください。
+        </p>
+      )}
+
       {/* Secret Key */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="secret-key">

@@ -48,17 +48,22 @@ export async function POST(req: NextRequest) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const stripe = new Stripe(settings.secretKey, { apiVersion: "2026-05-27.dahlia" as any });
 
+  if (!settings.webhookSecret) {
+    // Webhook シークレット未設定のまま署名検証をスキップすると、リクエストボディを
+    // 誰でも偽装できてしまう（不正な決済完了通知による無料アクセス権取得のリスク）。
+    // 未設定の場合はイベントを拒否し、管理画面でのWebhookシークレット設定を必須とする。
+    return NextResponse.json(
+      { error: "Webhook シークレットが未設定です。管理画面で設定してください。" },
+      { status: 400 },
+    );
+  }
+
   let event: Stripe.Event;
-  if (settings.webhookSecret) {
-    try {
-      event = stripe.webhooks.constructEvent(rawBody, sig, settings.webhookSecret);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "署名検証失敗";
-      return NextResponse.json({ error: msg }, { status: 400 });
-    }
-  } else {
-    // Webhook シークレット未設定：開発時のみ許容（署名検証スキップ）
-    event = eventData as unknown as Stripe.Event;
+  try {
+    event = stripe.webhooks.constructEvent(rawBody, sig, settings.webhookSecret);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "署名検証失敗";
+    return NextResponse.json({ error: msg }, { status: 400 });
   }
 
   if (event.type !== "checkout.session.completed") {
