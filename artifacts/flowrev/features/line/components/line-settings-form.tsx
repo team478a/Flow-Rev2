@@ -43,9 +43,18 @@ export function LineSettingsForm({ current }: LineSettingsFormProps) {
   }
 
   const noChanges = !token && !secret && friendUrl === (current?.lineFriendUrl ?? "");
+  const inheritedTier =
+    current && current.tier !== "client" ? current.tier : null;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      {inheritedTier && (
+        <p className="text-xs text-muted-foreground bg-muted rounded px-3 py-2">
+          {inheritedTier === "white_label"
+            ? "現在は代理店（OEM）の共通設定を使用しています。保存すると、この画面の内容でクライアント専用の設定に切り替わります。"
+            : "現在は本部の共通設定を使用しています。保存すると、この画面の内容でクライアント専用の設定に切り替わります。"}
+        </p>
+      )}
       {/* チャネルアクセストークン */}
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="channel-access-token">
