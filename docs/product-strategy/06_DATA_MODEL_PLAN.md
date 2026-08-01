@@ -16,7 +16,7 @@
 | `follow_scenarios` / `scenario_steps` / `scenario_logs` | reuse-existing | `trigger_type`の許容値拡張のみ行う。テーブル構造自体の作り直しはしない |
 | `lesson_progress` | reuse-existing | 変更不要。将来`activity_events`と連携する際も列追加は最小限にする想定 |
 | `rate_limits` | reuse-existing（用途限定） | レート制限専用として維持する。利用量管理（累積計測）とは明確に別物であり、統合しない |
-| `ai_settings` / `email_settings` / `line_settings` / `stripe_settings` / `cloudflare_settings` | reuse-existing | テーブル構造は概ね維持しつつ、読み取りロジック（3階層フォールバック）を統一する。`cloudflare_settings`のみテナント列の追加要否を実装時に確認する |
+| `ai_settings` / `email_settings` / `line_settings` / `stripe_settings` / `cloudflare_settings` | reuse-existing | テーブル構造は概ね維持しつつ、読み取りロジック（3階層フォールバック）を統一する。**（2026-08-01決定事項）Cloudflareを含む全設定は「クライアント→OEM→本部」の3階層フォールバックを基本方針として確定済み。`cloudflare_settings`の具体的なテナント列追加方法はPhase 1で既存テーブルを確認したうえで確定する（`09`文書参照）** |
 | `activity_events` | new-needed | 行動イベント記録。`white_label_id`/`client_id`/`customer_id`/`event_type`/`event_source`/`payload`/`occurred_at`/`created_at`。詳細スキーマ・RLS方針・イベント種別カタログは`docs/product/ACTIVITY_EVENT_CATALOG.md`（旧ブランチ`feature/phase-1-activity-events-foundation`）の設計をそのまま採用する（`04`文書1章参照） |
 | `inactivity_flags` | new-needed | 未行動者検知の結果保持。`white_label_id`/`client_id`/`customer_id`/`rule_key`/`detected_at`/`resolved_at`。`activity_events`を読むだけで判定でき、`activity_events`自体には手を入れない（`04`文書3章） |
 | `onboarding_templates` / `onboarding_steps` / `onboarding_progress` | new-needed | オンボーディング管理。`onboarding_templates`が`white_label_id`/`client_id`/`product_id`を持ち、`onboarding_steps`/`onboarding_progress`はテンプレート/ステップ経由でテナントを辿る（`follow_scenarios`→`scenario_steps`と同じ辿り方）。ステップは`manual_check`/`event_based`（`activity_events`と連携）の2種の完了条件を持つ（`04`文書2章） |
