@@ -6,7 +6,7 @@
 
 1. `docs/product-strategy-and-execution-plan`ブランチが本当に想定通りマージ済み/未マージのどちらの状態かを`git log`で確認する
 2. `docs/product-strategy/00_FLOWREV_PRODUCT_PRINCIPLES.md`〜`07_IMPLEMENTATION_ROADMAP.md`を読み、方針・現状ギャップ・実装順序を把握する
-3. `docs/product/`（ブランチ`feature/phase-1-activity-events-foundation`）の既存設計文書と矛盾がないか確認する（特にPhase 6以降のネイティブ運営機能着手時）
+3. Phase 6以降のネイティブ運営機能に着手する際は`04_NATIVE_OPERATIONS_FEATURES.md`・`06_DATA_MODEL_PLAN.md`を正とする。旧ブランチ`feature/phase-1-activity-events-foundation`の`docs/product/`は、この2文書へ内容を統合済みであり、今後は更新しない（削除もしない）。SQL DDLの詳細（インデックス定義等）を確認したい場合のみ参照する
 
 ## 今回のセッションでやること（今回は着手しない）
 
@@ -32,7 +32,8 @@
 3. **監査ログの保持期間・閲覧範囲**: `audit_logs`をOEM事業者にどこまで見せるか（自社配下のみか、匿名化した全体傾向も見せるか）
 4. **Cloudflare設定のテナント列追加**: 既存の単一グローバル行をどう移行するか、実際のスキーマを見た上で最終設計する（`08`文書Task 1-4で「要確認」としている部分）
 5. **データ所有権・契約解除時のデータ扱い**: `03`文書8章で「今回のロードマップ対象外」とした論点を、いつ扱うか
-6. **`docs/product/`との統合**: `feature/phase-1-activity-events-foundation`ブランチの内容を`main`にどう統合するか（別PRか、Phase 6着手時にまとめてマージするか）
+
+（`docs/product/`との関係は本ラウンドで整理済み: 内容は`04`・`06`文書へ統合済み、旧ブランチは削除せず保持するが今後更新しない。詳細は本文書「ドキュメントの位置付け」参照）
 
 ## やってはいけないこと（今回の指示書で明示された禁止事項の再確認）
 
@@ -50,3 +51,11 @@
 ## ドキュメントの位置付け
 
 `docs/product-strategy/`配下の10文書は、今後の実装判断の基準となる。実装中に方針と食い違う判断が必要になった場合は、コードを先に変更するのではなく、まずこの文書セットの該当箇所を更新してから実装に進むこと。
+
+## `docs/product/`（旧ブランチ`feature/phase-1-activity-events-foundation`）との関係
+
+旧ブランチの`docs/product/`5文書が持っていた技術設計（`activity_events`のDDL・RLSポリシー・イベント種別カタログ、未行動検知・オンボーディング・フォロー自動化・コミットメント管理の詳細設計、既存コード調査で判明した制約）は、本ラウンドで`04_NATIVE_OPERATIONS_FEATURES.md`と`06_DATA_MODEL_PLAN.md`へ統合済みである。
+
+- **旧ブランチは削除しない。** 監査証跡・検討経緯として保持する。
+- **旧ブランチは今後使用しない。** 新たな設計変更・追記は`docs/product-strategy/`配下で行う。`docs/product/`側のファイルは更新対象外とする。
+- Phase 6〜8（旧Phase A〜E）着手時にSQL DDLのより詳細な記述（インデックス定義等）が必要な場合のみ、旧ブランチの該当ファイルを参照してよい。ただし方針・優先順位・Phase番号に関する判断は必ず`docs/product-strategy/`側を正とする。

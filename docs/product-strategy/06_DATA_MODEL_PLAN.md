@@ -17,14 +17,18 @@
 | `lesson_progress` | reuse-existing | 変更不要。将来`activity_events`と連携する際も列追加は最小限にする想定 |
 | `rate_limits` | reuse-existing（用途限定） | レート制限専用として維持する。利用量管理（累積計測）とは明確に別物であり、統合しない |
 | `ai_settings` / `email_settings` / `line_settings` / `stripe_settings` / `cloudflare_settings` | reuse-existing | テーブル構造は概ね維持しつつ、読み取りロジック（3階層フォールバック）を統一する。`cloudflare_settings`のみテナント列の追加要否を実装時に確認する |
-| `activity_events` | new-needed | 行動イベント記録。`customer_id`/`client_id`/`white_label_id`/`event_type`/`metadata`/`occurred_at` |
-| `commitments` | new-needed | コミットメント管理。`customer_id`/`client_id`/`white_label_id`/`title`/`status`/`due_date` |
+| `activity_events` | new-needed | 行動イベント記録。`white_label_id`/`client_id`/`customer_id`/`event_type`/`event_source`/`payload`/`occurred_at`/`created_at`。詳細スキーマ・RLS方針・イベント種別カタログは`docs/product/ACTIVITY_EVENT_CATALOG.md`（旧ブランチ`feature/phase-1-activity-events-foundation`）の設計をそのまま採用する（`04`文書1章参照） |
+| `inactivity_flags` | new-needed | 未行動者検知の結果保持。`white_label_id`/`client_id`/`customer_id`/`rule_key`/`detected_at`/`resolved_at`。`activity_events`を読むだけで判定でき、`activity_events`自体には手を入れない（`04`文書3章） |
+| `onboarding_templates` / `onboarding_steps` / `onboarding_progress` | new-needed | オンボーディング管理。`onboarding_templates`が`white_label_id`/`client_id`/`product_id`を持ち、`onboarding_steps`/`onboarding_progress`はテンプレート/ステップ経由でテナントを辿る（`follow_scenarios`→`scenario_steps`と同じ辿り方）。ステップは`manual_check`/`event_based`（`activity_events`と連携）の2種の完了条件を持つ（`04`文書2章） |
+| `commitments` | new-needed | コミットメント管理。`white_label_id`/`client_id`/`customer_id`/`goal_text`/`due_date`/`status` |
+| `commitment_checkins` | new-needed | コミットメントの週次チェックイン。`commitment_id`経由でテナントを辿る。`action_text`/`self_rating`/`operator_comment`/`ai_suggestion`（AIは下書き提案のみ、`operator_comment`への反映は必ず運営者の確認・編集を経る） |
 | `feature_definitions` | new-needed | 機能キーのマスタ定義（本部管理） |
 | `plan_features` | new-needed | プラン単位の機能割当（HQプラン・WLプラン共通） |
 | `white_label_features` | new-needed | OEM事業者単位の機能上書き（HQ許可範囲内） |
 | `client_features` | new-needed | クライアント事業者単位の機能上書き（WL許可範囲内） |
 | `usage_records`（仮称） | new-needed | 利用量の累積計測（AI生成・メール送信・LINE送信・ストレージ等）。集計テーブルまたはイベント型テーブルのどちらにするかは実装時に決定 |
 | `audit_logs` | new-needed | 運営者操作の監査ログ（actor_id, tenant scope, action, target, occurred_at） |
+| `scenario_logs.status`への`'cancelled'`追加、`scenario_steps.channel`への`'admin_task'`追加 | new-needed（既存テーブルの拡張） | 新規テーブルではなく既存`follow_scenarios`系テーブルのALTER。未行動が解決した際の送信取り消し、および「運営者への社内タスク化」ステップに対応する（`04`文書5章） |
 
 ## 2. should-mergeの詳細
 
@@ -52,4 +56,4 @@ white_label_features（OEM単位の上書き、HQ許可範囲内にクランプ�
 
 ## 4. 「全部一度に実装する計画ではない」という明記
 
-上記new-needed 8テーブルを一度のフェーズで全て実装することは意図していない。`07_IMPLEMENTATION_ROADMAP.md`で段階分けし、`08_PHASE_1_DETAILED_PLAN.md`で最初のフェーズに含める範囲のみを具体化する。
+上記new-needed群を一度のフェーズで全て実装することは意図していない。`07_IMPLEMENTATION_ROADMAP.md`で段階分けし、`08_PHASE_1_DETAILED_PLAN.md`で最初のフェーズに含める範囲のみを具体化する。行動イベント・未行動検知・オンボーディング・コミットメント管理関連のテーブル（本章2段落目）は、旧ブランチ`feature/phase-1-activity-events-foundation`の`docs/product/`で先行して技術設計されていた内容を本文書へ統合したものである。今後の設計判断は本`docs/product-strategy/`配下を正とし、旧ブランチは削除せず保持するが更新対象にはしない。SQL DDLの詳細な記述（インデックス定義等）を確認したい場合のみ、旧ブランチを参照する。
