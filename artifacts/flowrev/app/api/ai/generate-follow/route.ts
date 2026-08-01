@@ -1,18 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionProfile } from "@/features/auth/session";
 import { generateText, buildFollowPrompt } from "@/lib/ai/client";
 import { checkAiGenerationLimit } from "@/lib/rate-limit";
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) {
+  const session = await getSessionProfile();
+  if (!session) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
   }
 
-  const rateLimit = await checkAiGenerationLimit(user.id);
+  const rateLimit = await checkAiGenerationLimit(session.userId);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "AI生成のリクエストが多すぎます。しばらく待ってから再度お試しください。" },
@@ -31,7 +28,10 @@ export async function POST(req: NextRequest) {
   }
 
   try {
-    const text = await generateText(buildFollowPrompt(subject, scenarioName));
+    const text = await generateText(
+      buildFollowPrompt(subject, scenarioName),
+      session.whiteLabelId,
+    );
     return NextResponse.json({ text });
   } catch (e) {
     const message = e instanceof Error ? e.message : "生成に失敗しました。";

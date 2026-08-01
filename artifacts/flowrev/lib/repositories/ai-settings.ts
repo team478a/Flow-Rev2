@@ -27,13 +27,39 @@ export interface UpsertAiSettingInput {
 }
 
 /**
- * HQ共通（white_label_id IS NULL）のアクティブなAI設定を取得する（復号済み）。
+ * アクティブなAI設定を取得する（復号済み）。WL個別設定 → HQ共通設定の順でフォールバックする
+ * （`getActiveEmailSetting`と同じ2階層パターン。`ai_provider_settings`に`client_id`列は
+ * 存在しないため、クライアント単位の設定はこの関数のスコープ外）。
  * APIキーの利用は system_admin / server-side のみ想定。
  */
 export async function getActiveAiSetting(
   provider: AiProvider = "anthropic",
+  whiteLabelId?: string | null,
 ): Promise<AiSettingResolved | null> {
   const supabase = createAdminClient();
+
+  if (whiteLabelId) {
+    const { data, error } = await supabase
+      .from("ai_provider_settings")
+      .select("id, provider, api_key_enc, model, is_active, white_label_id")
+      .eq("provider", provider)
+      .eq("white_label_id", whiteLabelId)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (error) throwSafe("AI設定の取得に失敗しました", error);
+    if (data?.api_key_enc) {
+      const row = data as Record<string, unknown>;
+      return {
+        id: row.id as string,
+        provider: row.provider as AiProvider,
+        apiKey: decrypt(row.api_key_enc as string),
+        model: (row.model as string) ?? null,
+        isActive: row.is_active as boolean,
+        whiteLabelId: (row.white_label_id as string) ?? null,
+      };
+    }
+  }
+
   const { data, error } = await supabase
     .from("ai_provider_settings")
     .select("id, provider, api_key_enc, model, is_active, white_label_id")

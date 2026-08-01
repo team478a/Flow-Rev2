@@ -8,9 +8,13 @@ const LP_MAX_TOKENS = 6000;
 /**
  * DB に保存された API キーを使って Anthropic でテキストを生成する。
  * server-side（API Route / Server Action）からのみ呼び出す。
+ * whiteLabelId を渡すと、WL個別のAI設定 → HQ共通設定の順で解決する。
  */
-export async function generateText(prompt: string): Promise<string> {
-  const setting = await getActiveAiSetting("anthropic");
+export async function generateText(
+  prompt: string,
+  whiteLabelId?: string | null,
+): Promise<string> {
+  const setting = await getActiveAiSetting("anthropic", whiteLabelId);
   if (!setting) {
     throw new Error(
       "AI API キーが設定されていません。管理者へお問い合わせください。",
@@ -34,9 +38,13 @@ export async function generateText(prompt: string): Promise<string> {
 /**
  * LP HTML 専用の生成関数。トークン上限を大きく取る。
  * server-side（API Route）からのみ呼び出す。
+ * whiteLabelId を渡すと、WL個別のAI設定 → HQ共通設定の順で解決する。
  */
-export async function generateLpHtml(prompt: string): Promise<string> {
-  const setting = await getActiveAiSetting("anthropic");
+export async function generateLpHtml(
+  prompt: string,
+  whiteLabelId?: string | null,
+): Promise<string> {
+  const setting = await getActiveAiSetting("anthropic", whiteLabelId);
   if (!setting) {
     throw new Error(
       "AI API キーが設定されていません。管理者へお問い合わせください。",

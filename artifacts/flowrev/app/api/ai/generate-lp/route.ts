@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionProfile } from "@/features/auth/session";
 import { generateLpHtml } from "@/lib/ai/client";
 import {
   generateLpCss,
@@ -116,13 +116,12 @@ function stripCodeFence(text: string): string {
 }
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const session = await getSessionProfile();
+  if (!session) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
   }
 
-  const rateLimit = await checkAiGenerationLimit(user.id);
+  const rateLimit = await checkAiGenerationLimit(session.userId);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "AI生成のリクエストが多すぎます。しばらく待ってから再度お試しください。" },
@@ -188,7 +187,7 @@ export async function POST(req: NextRequest) {
   const prompt = buildDesignedLpPrompt(title, productName, designStyleName, referenceContent);
 
   try {
-    const rawHtml = await generateLpHtml(prompt);
+    const rawHtml = await generateLpHtml(prompt, session.whiteLabelId);
     const bodyHtml = stripCodeFence(rawHtml);
     // text: 従来互換（HTML詳細編集フォームの自由入力欄向け、<style>込みの単一文字列）。
     // html/css/design: ウィザード用。CSSをHTML本文と分離して返し、保存時も別列に
