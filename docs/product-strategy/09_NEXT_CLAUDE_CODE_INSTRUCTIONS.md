@@ -1,0 +1,64 @@
+# 次セッションへの引き継ぎ指示
+
+## 前提の確認
+
+このドキュメントセット（`docs/product-strategy/00`〜`09`）は、ブランチ`docs/product-strategy-and-execution-plan`上で作成された。作業を始める前に以下を確認すること。
+
+1. `docs/product-strategy-and-execution-plan`ブランチが本当に想定通りマージ済み/未マージのどちらの状態かを`git log`で確認する
+2. `docs/product-strategy/00_FLOWREV_PRODUCT_PRINCIPLES.md`〜`07_IMPLEMENTATION_ROADMAP.md`を読み、方針・現状ギャップ・実装順序を把握する
+3. Phase 6以降のネイティブ運営機能に着手する際は`04_NATIVE_OPERATIONS_FEATURES.md`・`06_DATA_MODEL_PLAN.md`を正とする。旧ブランチ`feature/phase-1-activity-events-foundation`の`docs/product/`は、この2文書へ内容を統合済みであり、今後は更新しない（削除もしない）。SQL DDLの詳細（インデックス定義等）を確認したい場合のみ参照する
+
+## 進捗状況（2026-08-02更新）
+
+**Task 1-1（AI設定のフォールバック化）は実装完了。** `feature/phase1-ai-settings-fallback`ブランチ・PR #3。`lib/repositories/ai-settings.ts`の`getActiveAiSetting()`にWL→HQの2階層フォールバックを実装済み（`ai_provider_settings`に`client_id`列がないため、当初計画の「3階層」ではなく2階層が正しい設計だったことが実装時に判明。`08`文書冒頭に訂正を記載済み）。typecheck・build成功。実データでのdev環境確認は未実施（PR #3参照）。
+
+## 次回セッションの最初のタスク: Task 1-2（LINE設定の3階層フォールバック化）
+
+`08_PHASE_1_DETAILED_PLAN.md`のTask 1-2をそのまま実施する。Task 1-1と異なり、`line_accounts`テーブルには`client_id`・`white_label_id`の両列が既に存在するため、こちらは実際に3階層（クライアント→WL→HQ）を実装する。
+
+- 新しいブランチを`main`から作成する（例: `feature/phase1-line-settings-fallback`）
+- 対象: `artifacts/flowrev/lib/repositories/line-settings.ts`（`47-70`行付近）
+- お手本1: `artifacts/flowrev/lib/repositories/email-settings.ts:105-149`の`getActiveEmailSetting(whiteLabelId)`（フォールバックの書き方）
+- お手本2: `feature/phase1-ai-settings-fallback`ブランチ（PR #3）の`getActiveAiSetting()`実装（呼び出し元での`getSessionProfile()`活用パターン）
+- DB変更は不要（`line_accounts`に`client_id`・`white_label_id`の両列が既存）
+- 呼び出し元をすべて洗い出し、シグネチャ変更が必要であれば追随させる
+- テスト: クライアント単位設定あり／クライアント単位なしWL単位のみ／どちらもなし、の3パターンで正しい設定が返ることを確認
+- 完了したらtypecheck・build・既存の関連テストを実行し、結果を報告する
+- 小さい1タスクなので、このタスク単体でPRを作成してよい（`00`文書7章の原則通り）
+
+## 決定事項（2026-08-01、暫定決定）
+
+PR #2レビュー時点で、以下5点を未決事項の暫定決定とした。各決定は該当する文書の本文にも反映済み（参照先を各項目に記載）。「暫定」である理由は、実装時に判明する制約（既存スキーマの都合等）により微調整があり得るため。方針そのものを覆す場合は、コードを変更する前に必ずこの文書セットを更新すること。
+
+1. **外部設定の階層解決方針（Cloudflareを含む）**: 「クライアント設定 → OEM設定 → FlowRev本部設定」の考え方を基本とする。**（2026-08-02訂正、Task 1-1実装時の発見）実際に到達できる階層数はテーブルのテナント列構成に依存する**: AI・メールは`client_id`列が存在せず2階層（WL→HQ）が上限。LINE・Stripeは`client_id`・`white_label_id`の両列が既存のため3階層を実現できる。Cloudflareはテナント列が一切なく、Phase 1で追加方法を確定したうえで3階層化する。反映先: `02`文書8章、`06`文書1章、`08`文書冒頭・Task 1-1〜1-4。
+2. **利用量計測の優先順位**: AI画像生成 → AI文章・LP・商品生成 → メール送信 → LINE送信 → 自動化実行 → ストレージ・動画容量、の順で計測対象を追加する。反映先: `02`文書13章、`07`文書Phase 5。
+3. **監査ログの閲覧範囲**: system_adminは全件、white_label_ownerは自OEMと配下クライアントの分、client_ownerは自クライアントの分のみ閲覧可能とする。秘密情報およびFlowRev本部の内部セキュリティログは、いかなる下位階層にも表示しない。反映先: `05`文書1章。
+4. **契約解除時のデータ扱い**: クライアント業務データのエクスポート猶予期間を原則30日とする。法令・決済・監査上の保持義務がある対象を除き、猶予期間終了後に削除または匿名化する。具体的な保持対象の切り分け・実施方法は契約・法務設計で別途確定する（本ラウンドでは未着手）。反映先: `03`文書8章。
+5. **Phase 3〜4の実行順序**: 機能制御の管理画面を有効化する前に、監査ログ基盤を導入する。Phase 3を「3a: 内部基盤（テーブル・ロジックのみ、管理画面なし）」と「3b: 管理画面公開」に分割し、3bはPhase 4（監査ログ基盤）完了後に着手する。理由: 機能設定の変更は重要な運営操作であり、画面から実際に変更できる状態になる前に、誰が何を変更したかを記録できる状態にしておく必要があるため。反映先: `07`文書Phase 3・Phase 4・まとめ（推奨実装順序: `1 → 2 → 3a → 4 → 3b → 5 → 6 → 7 → 8 → 9`）。
+
+Phase 0〜9の全体順序・製品方針・OEM事業モデル・Onbizu/CommitRev不採用・独自運営機能は、上記決定事項発行時点で承認済み。
+
+## やってはいけないこと（今回の指示書で明示された禁止事項の再確認）
+
+- 大規模な機能実装・全面リライトを一度に行わない
+- 本番DBへのマイグレーション適用は明示承認なしに行わない
+- 本番環境変数の変更は行わない
+- `main`への直接コミットは行わない
+- 既にマージ済みのPR #1に大きな追加を行わない
+- Stripe Connect・自動売上分配は実装しない
+- 高度なカスタムドメイン・ログイン代行は実装しない
+- 高機能なビジュアルオートメーションビルダーは作らない
+- Onbizu連携・CommitRev連携は実装しない
+- AIによる無承認の自動送信は実装しない（提案→承認→送信の順を必ず経る）
+
+## ドキュメントの位置付け
+
+`docs/product-strategy/`配下の10文書は、今後の実装判断の基準となる。実装中に方針と食い違う判断が必要になった場合は、コードを先に変更するのではなく、まずこの文書セットの該当箇所を更新してから実装に進むこと。
+
+## `docs/product/`（旧ブランチ`feature/phase-1-activity-events-foundation`）との関係
+
+旧ブランチの`docs/product/`5文書が持っていた技術設計（`activity_events`のDDL・RLSポリシー・イベント種別カタログ、未行動検知・オンボーディング・フォロー自動化・コミットメント管理の詳細設計、既存コード調査で判明した制約）は、本ラウンドで`04_NATIVE_OPERATIONS_FEATURES.md`と`06_DATA_MODEL_PLAN.md`へ統合済みである。
+
+- **旧ブランチは削除しない。** 監査証跡・検討経緯として保持する。
+- **旧ブランチは今後使用しない。** 新たな設計変更・追記は`docs/product-strategy/`配下で行う。`docs/product/`側のファイルは更新対象外とする。
+- Phase 6〜8（旧Phase A〜E）着手時にSQL DDLのより詳細な記述（インデックス定義等）が必要な場合のみ、旧ブランチの該当ファイルを参照してよい。ただし方針・優先順位・Phase番号に関する判断は必ず`docs/product-strategy/`側を正とする。
