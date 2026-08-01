@@ -83,6 +83,19 @@ export async function POST(req: NextRequest) {
     .maybeSingle();
   const customerId = (customerRow as Record<string, unknown> | null)?.id as string | undefined;
 
+  if (!customerId) {
+    // 顧客IDが取得できない状態では、有料/無料どちらのフローも安全に進められない
+    // （Stripe決済のmetadata・購入記録・招待・権限付与のいずれも顧客IDに依存するため）。
+    // メールアドレス等のPIIはログに出さず、テナント・LPの識別子のみ記録する。
+    console.error(
+      `[LP register] 顧客ID取得失敗のため登録処理を停止 (client ${clientId}, lp ${lpId})`,
+    );
+    return NextResponse.json(
+      { error: "登録に失敗しました。しばらくしてからお試しください。" },
+      { status: 500 },
+    );
+  }
+
   // コンバージョンカウントを +1
   await admin
     .from("landing_pages")
