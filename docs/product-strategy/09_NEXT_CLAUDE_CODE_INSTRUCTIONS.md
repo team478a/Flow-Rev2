@@ -8,20 +8,21 @@
 2. `docs/product-strategy/00_FLOWREV_PRODUCT_PRINCIPLES.md`〜`07_IMPLEMENTATION_ROADMAP.md`を読み、方針・現状ギャップ・実装順序を把握する
 3. Phase 6以降のネイティブ運営機能に着手する際は`04_NATIVE_OPERATIONS_FEATURES.md`・`06_DATA_MODEL_PLAN.md`を正とする。旧ブランチ`feature/phase-1-activity-events-foundation`の`docs/product/`は、この2文書へ内容を統合済みであり、今後は更新しない（削除もしない）。SQL DDLの詳細（インデックス定義等）を確認したい場合のみ参照する
 
-## 今回のセッションでやること（今回は着手しない）
+## 進捗状況（2026-08-02更新）
 
-**今回のラウンドでは実装を行わない。** 次回セッションで着手すべき最初の作業単位は以下。
+**Task 1-1（AI設定のフォールバック化）は実装完了。** `feature/phase1-ai-settings-fallback`ブランチ・PR #3。`lib/repositories/ai-settings.ts`の`getActiveAiSetting()`にWL→HQの2階層フォールバックを実装済み（`ai_provider_settings`に`client_id`列がないため、当初計画の「3階層」ではなく2階層が正しい設計だったことが実装時に判明。`08`文書冒頭に訂正を記載済み）。typecheck・build成功。実データでのdev環境確認は未実施（PR #3参照）。
 
-## 次回セッションの最初のタスク: Task 1-1（AI設定の3階層フォールバック化）
+## 次回セッションの最初のタスク: Task 1-2（LINE設定の3階層フォールバック化）
 
-`08_PHASE_1_DETAILED_PLAN.md`のTask 1-1をそのまま実施する。
+`08_PHASE_1_DETAILED_PLAN.md`のTask 1-2をそのまま実施する。Task 1-1と異なり、`line_accounts`テーブルには`client_id`・`white_label_id`の両列が既に存在するため、こちらは実際に3階層（クライアント→WL→HQ）を実装する。
 
-- 新しいブランチを`main`から作成する（例: `feature/phase1-ai-settings-fallback`）
-- 対象: `artifacts/flowrev/lib/repositories/ai-settings.ts`の`getActiveAiSetting()`
-- お手本: `artifacts/flowrev/lib/repositories/email-settings.ts:105-149`の`getActiveEmailSetting(whiteLabelId)`と同じ「クライアント→WL→HQ」の3階層フォールバック構造にする
-- DB変更は不要（既存テーブルにWL単位のユニーク制約が既にある）
+- 新しいブランチを`main`から作成する（例: `feature/phase1-line-settings-fallback`）
+- 対象: `artifacts/flowrev/lib/repositories/line-settings.ts`（`47-70`行付近）
+- お手本1: `artifacts/flowrev/lib/repositories/email-settings.ts:105-149`の`getActiveEmailSetting(whiteLabelId)`（フォールバックの書き方）
+- お手本2: `feature/phase1-ai-settings-fallback`ブランチ（PR #3）の`getActiveAiSetting()`実装（呼び出し元での`getSessionProfile()`活用パターン）
+- DB変更は不要（`line_accounts`に`client_id`・`white_label_id`の両列が既存）
 - 呼び出し元をすべて洗い出し、シグネチャ変更が必要であれば追随させる
-- テスト: クライアント単位設定あり／WL単位のみ／どちらもなし、の3パターンで正しい設定が返ることを確認
+- テスト: クライアント単位設定あり／クライアント単位なしWL単位のみ／どちらもなし、の3パターンで正しい設定が返ることを確認
 - 完了したらtypecheck・build・既存の関連テストを実行し、結果を報告する
 - 小さい1タスクなので、このタスク単体でPRを作成してよい（`00`文書7章の原則通り）
 
@@ -29,7 +30,7 @@
 
 PR #2レビュー時点で、以下5点を未決事項の暫定決定とした。各決定は該当する文書の本文にも反映済み（参照先を各項目に記載）。「暫定」である理由は、実装時に判明する制約（既存スキーマの都合等）により微調整があり得るため。方針そのものを覆す場合は、コードを変更する前に必ずこの文書セットを更新すること。
 
-1. **外部設定の階層解決方針（Cloudflareを含む）**: クライアント設定 → OEM設定 → FlowRev本部設定の3階層フォールバックを基本とする。具体的なテーブルスキーマ（`cloudflare_settings`へのテナント列追加方法等）はPhase 1で既存テーブルを確認したうえで確定する。反映先: `02`文書8章、`06`文書1章、`08`文書Task 1-4。
+1. **外部設定の階層解決方針（Cloudflareを含む）**: 「クライアント設定 → OEM設定 → FlowRev本部設定」の考え方を基本とする。**（2026-08-02訂正、Task 1-1実装時の発見）実際に到達できる階層数はテーブルのテナント列構成に依存する**: AI・メールは`client_id`列が存在せず2階層（WL→HQ）が上限。LINE・Stripeは`client_id`・`white_label_id`の両列が既存のため3階層を実現できる。Cloudflareはテナント列が一切なく、Phase 1で追加方法を確定したうえで3階層化する。反映先: `02`文書8章、`06`文書1章、`08`文書冒頭・Task 1-1〜1-4。
 2. **利用量計測の優先順位**: AI画像生成 → AI文章・LP・商品生成 → メール送信 → LINE送信 → 自動化実行 → ストレージ・動画容量、の順で計測対象を追加する。反映先: `02`文書13章、`07`文書Phase 5。
 3. **監査ログの閲覧範囲**: system_adminは全件、white_label_ownerは自OEMと配下クライアントの分、client_ownerは自クライアントの分のみ閲覧可能とする。秘密情報およびFlowRev本部の内部セキュリティログは、いかなる下位階層にも表示しない。反映先: `05`文書1章。
 4. **契約解除時のデータ扱い**: クライアント業務データのエクスポート猶予期間を原則30日とする。法令・決済・監査上の保持義務がある対象を除き、猶予期間終了後に削除または匿名化する。具体的な保持対象の切り分け・実施方法は契約・法務設計で別途確定する（本ラウンドでは未着手）。反映先: `03`文書8章。
