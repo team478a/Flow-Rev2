@@ -3,16 +3,21 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { encrypt, decrypt } from "@/lib/crypto";
 import { throwSafe } from "@/lib/repositories/error-utils";
 
+export type StripeSettingsTier = "client" | "white_label" | "hq";
+
 export interface StripeSettingsMasked {
   hasSecretKey: boolean;
   hasWebhookSecret: boolean;
   isLive: boolean;
+  /** どの階層の設定を表示しているか（クライアント自身の設定でない場合、編集画面側で継承表示に使う） */
+  tier: StripeSettingsTier;
 }
 
 export interface StripeSettingsResolved {
   secretKey: string;
   webhookSecret: string | null;
   isLive: boolean;
+  tier: StripeSettingsTier;
 }
 
 export interface UpsertStripeSettingsInput {
@@ -21,43 +26,88 @@ export interface UpsertStripeSettingsInput {
   isLive?: boolean;
 }
 
-/** 管理画面表示用：キーをマスクして返す */
+const STRIPE_ACCOUNT_COLUMNS = "access_token_enc, webhook_secret_enc, is_live";
+
+async function getClientWhiteLabelId(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+): Promise<string | null> {
+  const { data } = await admin
+    .from("clients")
+    .select("white_label_id")
+    .eq("id", clientId)
+    .maybeSingle();
+  return (data as Record<string, unknown> | null)?.white_label_id as
+    | string
+    | null;
+}
+
+/**
+ * クライアント→WL→HQの順でStripe設定を解決する（`getActiveAiSetting`/`getLineSettingsResolved`と
+ * 同じ3階層パターン）。見つかった階層の生データとtierを返す。呼び出し側でマスク/復号する。
+ */
+async function resolveStripeAccountRow(
+  admin: ReturnType<typeof createAdminClient>,
+  clientId: string,
+): Promise<{ row: Record<string, unknown>; tier: StripeSettingsTier } | null> {
+  const { data: clientRow, error: clientError } = await admin
+    .from("stripe_accounts")
+    .select(STRIPE_ACCOUNT_COLUMNS)
+    .eq("client_id", clientId)
+    .maybeSingle();
+  if (clientError) throwSafe("Stripe設定の取得に失敗", clientError);
+  if (clientRow) return { row: clientRow as Record<string, unknown>, tier: "client" };
+
+  const whiteLabelId = await getClientWhiteLabelId(admin, clientId);
+  if (whiteLabelId) {
+    const { data: wlRow, error: wlError } = await admin
+      .from("stripe_accounts")
+      .select(STRIPE_ACCOUNT_COLUMNS)
+      .is("client_id", null)
+      .eq("white_label_id", whiteLabelId)
+      .maybeSingle();
+    if (wlError) throwSafe("Stripe設定の取得に失敗", wlError);
+    if (wlRow) return { row: wlRow as Record<string, unknown>, tier: "white_label" };
+  }
+
+  const { data: hqRow, error: hqError } = await admin
+    .from("stripe_accounts")
+    .select(STRIPE_ACCOUNT_COLUMNS)
+    .is("client_id", null)
+    .is("white_label_id", null)
+    .maybeSingle();
+  if (hqError) throwSafe("Stripe設定の取得に失敗", hqError);
+  if (hqRow) return { row: hqRow as Record<string, unknown>, tier: "hq" };
+
+  return null;
+}
+
+/** 管理画面表示用：クライアント→WL→HQの順で解決し、キーをマスクして返す */
 export async function getStripeSettingsMasked(
   clientId: string,
 ): Promise<StripeSettingsMasked | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("stripe_accounts")
-    .select("access_token_enc, webhook_secret_enc, is_live")
-    .eq("client_id", clientId)
-    .maybeSingle();
+  const resolved = await resolveStripeAccountRow(admin, clientId);
+  if (!resolved) return null;
 
-  if (error) throwSafe("Stripe設定の取得に失敗", error);
-  if (!data) return null;
-
-  const row = data as Record<string, unknown>;
+  const { row, tier } = resolved;
   return {
     hasSecretKey: !!(row.access_token_enc as string),
     hasWebhookSecret: !!(row.webhook_secret_enc as string),
     isLive: !!(row.is_live as boolean),
+    tier,
   };
 }
 
-/** API呼び出し用：復号済みキーを返す */
+/** API呼び出し用：クライアント→WL→HQの順で解決し、復号済みキーを返す */
 export async function getStripeSettingsResolved(
   clientId: string,
 ): Promise<StripeSettingsResolved | null> {
   const admin = createAdminClient();
-  const { data, error } = await admin
-    .from("stripe_accounts")
-    .select("access_token_enc, webhook_secret_enc, is_live")
-    .eq("client_id", clientId)
-    .maybeSingle();
+  const resolved = await resolveStripeAccountRow(admin, clientId);
+  if (!resolved) return null;
 
-  if (error) throwSafe("Stripe設定の取得に失敗", error);
-  if (!data) return null;
-
-  const row = data as Record<string, unknown>;
+  const { row, tier } = resolved;
   if (!row.access_token_enc) return null;
 
   return {
@@ -66,6 +116,7 @@ export async function getStripeSettingsResolved(
       ? decrypt(row.webhook_secret_enc as string)
       : null,
     isLive: !!(row.is_live as boolean),
+    tier,
   };
 }
 
@@ -84,14 +135,7 @@ export async function upsertStripeSettings(
     .maybeSingle();
 
   const existingRow = existing as Record<string, unknown> | null;
-
-  // white_label_id を clients テーブルから取得
-  const { data: clientRow } = await admin
-    .from("clients")
-    .select("white_label_id")
-    .eq("id", clientId)
-    .maybeSingle();
-  const whiteLabelId = (clientRow as Record<string, unknown> | null)?.white_label_id as string | null;
+  const whiteLabelId = await getClientWhiteLabelId(admin, clientId);
 
   const payload: Record<string, unknown> = {
     is_live: input.isLive ?? false,
