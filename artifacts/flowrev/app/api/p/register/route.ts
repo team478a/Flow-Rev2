@@ -90,6 +90,9 @@ export async function POST(req: NextRequest) {
     .eq("id", lpId);
 
   // ---- Stripe 決済フロー（商品に価格がある場合）----
+  // price > 0 の場合、このブロックは必ず return する（成功時は checkoutUrl、
+  // 失敗時は 502/503 エラー）。無料フローへフォールスルーすることはない。
+  // 有料商品が設定不備や一時的なエラーで無料配布されてしまう事故を防ぐため。
   if (productId && customerId) {
     const { data: productData } = await admin
       .from("products")
@@ -103,11 +106,21 @@ export async function POST(req: NextRequest) {
     if (price > 0) {
       const stripeResult = await getStripeClient(clientId).catch(() => null);
 
-      if (stripeResult && !stripeResult.webhookSecret) {
+      if (!stripeResult) {
+        // Stripe未設定（secretKeyが無い場合を含む）: 有料商品を無料で配布しないよう拒否する
+        console.error(
+          `[LP register] Stripe決済ブロック: Stripe未設定 (client ${clientId})`,
+        );
+        return NextResponse.json(
+          { error: "現在この商品の決済を受け付けられません。しばらくしてからお試しください。" },
+          { status: 503 },
+        );
+      }
+
+      if (!stripeResult.webhookSecret) {
         // secretKeyのみ設定されwebhookSecretが未設定のまま Checkout を作成すると、
         // Webhook側（app/api/webhooks/stripe/route.ts）は決済完了イベントを検証できず
         // 拒否するため、顧客は課金されるのに購入確定・アクセス権付与が永久に行われない。
-        // 設定不備を検出した時点でCheckout作成自体をブロックする（無料フローへは進めない）。
         console.error(
           `[LP register] Stripe決済ブロック: webhookSecret未設定 (client ${clientId})`,
         );
@@ -117,64 +130,69 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      if (stripeResult) {
-        try {
-          const host =
-            req.headers.get("x-forwarded-host") ??
-            req.headers.get("host") ??
-            "localhost:3000";
-          const proto = req.headers.get("x-forwarded-proto") ?? "http";
-          const origin = `${proto}://${host}`;
-          const lpSlug = (lp.slug as string) ?? lpId;
+      try {
+        const host =
+          req.headers.get("x-forwarded-host") ??
+          req.headers.get("host") ??
+          "localhost:3000";
+        const proto = req.headers.get("x-forwarded-proto") ?? "http";
+        const origin = `${proto}://${host}`;
+        const lpSlug = (lp.slug as string) ?? lpId;
 
-          const session = await stripeResult.stripe.checkout.sessions.create({
-            mode: "payment",
-            payment_method_types: ["card"],
-            line_items: [
-              {
-                quantity: 1,
-                price_data: {
-                  currency: "jpy",
-                  unit_amount: price,
-                  product_data: { name: (product?.name as string) ?? "商品" },
-                },
+        const session = await stripeResult.stripe.checkout.sessions.create({
+          mode: "payment",
+          payment_method_types: ["card"],
+          line_items: [
+            {
+              quantity: 1,
+              price_data: {
+                currency: "jpy",
+                unit_amount: price,
+                product_data: { name: (product?.name as string) ?? "商品" },
               },
-            ],
-            success_url: `${origin}/my?payment=success`,
-            cancel_url: `${origin}/p/${lpSlug}`,
-            customer_email: email,
-            metadata: {
-              client_id: clientId,
-              white_label_id: whiteLabelId,
-              customer_id: customerId,
-              product_id: productId,
-              lp_id: lpId,
-              customer_name: name ?? "",
-              customer_email: email,
             },
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          } as any);
+          ],
+          success_url: `${origin}/my?payment=success`,
+          cancel_url: `${origin}/p/${lpSlug}`,
+          customer_email: email,
+          metadata: {
+            client_id: clientId,
+            white_label_id: whiteLabelId,
+            customer_id: customerId,
+            product_id: productId,
+            lp_id: lpId,
+            customer_name: name ?? "",
+            customer_email: email,
+          },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        } as any);
 
-          // pending 購入レコードを作成
-          await createPurchase({
-            clientId,
-            whiteLabelId,
-            customerId,
-            productId,
-            amount: price,
-            stripeSessionId: session.id,
-          }).catch(() => null);
+        // pending 購入レコードを作成
+        await createPurchase({
+          clientId,
+          whiteLabelId,
+          customerId,
+          productId,
+          amount: price,
+          stripeSessionId: session.id,
+        }).catch(() => null);
 
-          return NextResponse.json({ ok: true, checkoutUrl: session.url });
-        } catch (e) {
-          console.error("[LP register] Stripe Checkout 作成失敗:", e);
-          // Stripe エラーは無料フローにフォールスルー
-        }
+        return NextResponse.json({ ok: true, checkoutUrl: session.url });
+      } catch (e) {
+        // 秘密情報はログへ出さない（Stripeエラーオブジェクトはメッセージのみ）
+        const msg = e instanceof Error ? e.message : "unknown error";
+        console.error(
+          `[LP register] Stripe Checkout 作成失敗 (client ${clientId}): ${msg}`,
+        );
+        return NextResponse.json(
+          { error: "決済の準備に失敗しました。しばらくしてからお試しください。" },
+          { status: 502 },
+        );
       }
     }
   }
 
-  // ---- 無料フロー（Stripe なし / 価格 0 / Stripe 未設定）----
+  // ---- 無料フロー（商品が無い、または価格が0以下の場合のみ）----
   try {
     const host =
       req.headers.get("x-forwarded-host") ??
