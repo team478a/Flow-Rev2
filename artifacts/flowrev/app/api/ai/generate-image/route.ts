@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
-import { createClient } from "@/lib/supabase/server";
+import { getSessionProfile } from "@/features/auth/session";
 import { getActiveAiSetting } from "@/lib/repositories/ai-settings";
 import { uploadLpImage, getLpImagePublicUrl } from "@/lib/storage";
 import { checkAiGenerationLimit } from "@/lib/rate-limit";
@@ -9,13 +9,12 @@ const DALLE_MODEL = "dall-e-3";
 const IMAGE_SIZE = "1024x1024" as const;
 
 export async function POST(req: NextRequest) {
-  const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) {
+  const session = await getSessionProfile();
+  if (!session) {
     return NextResponse.json({ error: "認証が必要です。" }, { status: 401 });
   }
 
-  const rateLimit = await checkAiGenerationLimit(user.id);
+  const rateLimit = await checkAiGenerationLimit(session.userId);
   if (!rateLimit.allowed) {
     return NextResponse.json(
       { error: "AI生成のリクエストが多すぎます。しばらく待ってから再度お試しください。" },
@@ -35,7 +34,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "画像の説明を入力してください。" }, { status: 400 });
   }
 
-  const setting = await getActiveAiSetting("openai");
+  const setting = await getActiveAiSetting("openai", session.whiteLabelId);
   if (!setting) {
     return NextResponse.json(
       { error: "OpenAI API キーが設定されていません。管理者設定でキーを登録してください。" },
@@ -65,7 +64,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "生成画像の取得に失敗しました。" }, { status: 500 });
     }
     const buffer = await imgRes.arrayBuffer();
-    const path = await uploadLpImage(buffer, "image/png", user.id);
+    const path = await uploadLpImage(buffer, "image/png", session.userId);
     const url = getLpImagePublicUrl(path);
 
     return NextResponse.json({ url });
