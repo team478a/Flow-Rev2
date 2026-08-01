@@ -27,9 +27,15 @@ export interface CreateWhiteLabelInput {
 export async function listWhiteLabels(): Promise<WhiteLabelListItem[]> {
   const admin = createAdminClient();
 
+  // plans は外部キー名を明示して埋め込む。0012_plans_white_label_id.sql で
+  // plans.white_label_id → white_labels.id が追加された結果、white_labels と plans の間に
+  // 関係が2本存在するようになり、`plans(name)` のままでは PostgREST が
+  // どちらを辿るか決められずエラー（PGRST201）になるため。
   const { data, error } = await admin
     .from("white_labels")
-    .select("id, brand_name, brand_color, status, created_at, owner_user_id, plans(name)")
+    .select(
+      "id, brand_name, brand_color, status, created_at, owner_user_id, plans!white_labels_plan_id_fkey(name)",
+    )
     .order("created_at", { ascending: false });
 
   if (error) {
