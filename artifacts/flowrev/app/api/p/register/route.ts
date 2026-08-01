@@ -102,6 +102,21 @@ export async function POST(req: NextRequest) {
 
     if (price > 0) {
       const stripeResult = await getStripeClient(clientId).catch(() => null);
+
+      if (stripeResult && !stripeResult.webhookSecret) {
+        // secretKeyのみ設定されwebhookSecretが未設定のまま Checkout を作成すると、
+        // Webhook側（app/api/webhooks/stripe/route.ts）は決済完了イベントを検証できず
+        // 拒否するため、顧客は課金されるのに購入確定・アクセス権付与が永久に行われない。
+        // 設定不備を検出した時点でCheckout作成自体をブロックする（無料フローへは進めない）。
+        console.error(
+          `[LP register] Stripe決済ブロック: webhookSecret未設定 (client ${clientId})`,
+        );
+        return NextResponse.json(
+          { error: "現在この商品の決済を受け付けられません。しばらくしてからお試しください。" },
+          { status: 503 },
+        );
+      }
+
       if (stripeResult) {
         try {
           const host =
