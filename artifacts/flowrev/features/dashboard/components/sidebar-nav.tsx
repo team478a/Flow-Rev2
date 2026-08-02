@@ -14,24 +14,50 @@ interface SidebarNavProps {
   items: NavItem[];
   userName: string | null;
   userEmail: string | null;
+  /** OEMのロゴ画像URL。未設定なら既定のアイコンを表示する。 */
+  brandLogoUrl?: string | null;
+  /** OEMのブランドカラー（CSSカラー値）。未設定なら既定色を使う。 */
+  brandColor?: string | null;
 }
+
+const DEFAULT_BRAND_COLOR = "#059669"; // emerald-600 相当（既定のFlowRevカラー）
 
 export function SidebarNav({
   brand,
   items,
   userName,
   userEmail,
+  brandLogoUrl = null,
+  brandColor = null,
 }: SidebarNavProps) {
   const pathname = usePathname();
+  const accent = brandColor || DEFAULT_BRAND_COLOR;
 
   return (
     <nav className="flex h-full flex-col">
       {/* ロゴ / ブランド */}
       <div className="flex h-16 items-center border-b border-slate-100 px-5">
-        <div className="flex items-center gap-2 text-emerald-600 font-bold text-lg tracking-tight">
-          <div className="w-7 h-7 rounded-lg bg-emerald-600 flex items-center justify-center shrink-0">
-            <div className="w-3.5 h-3.5 bg-white rounded-sm" />
-          </div>
+        <div
+          className="flex items-center gap-2 font-bold text-lg tracking-tight"
+          style={{ color: accent }}
+        >
+          {brandLogoUrl ? (
+            // OEMがロゴを設定している場合はそれを表示する。
+            // 外部URLを許容するため next/image ではなく img を使う。
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={brandLogoUrl}
+              alt={brand}
+              className="h-7 w-7 shrink-0 rounded-lg object-contain"
+            />
+          ) : (
+            <div
+              className="w-7 h-7 rounded-lg flex items-center justify-center shrink-0"
+              style={{ backgroundColor: accent }}
+            >
+              <div className="w-3.5 h-3.5 bg-white rounded-sm" />
+            </div>
+          )}
           {brand}
         </div>
       </div>

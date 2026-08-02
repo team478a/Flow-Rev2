@@ -73,11 +73,38 @@ export async function createWhiteLabelAction(
   redirect("/admin/white-labels");
 }
 
+/** 空文字は「未設定」として null に落とす。URL項目は形式も検証する。 */
+const optionalText = z
+  .string()
+  .trim()
+  .transform((v) => (v === "" ? null : v))
+  .nullable()
+  .optional();
+
+const optionalUrl = z
+  .string()
+  .trim()
+  .transform((v) => (v === "" ? null : v))
+  .nullable()
+  .optional()
+  .refine(
+    (v) => v == null || /^https?:\/\//.test(v),
+    "URLは http:// または https:// で始めてください。",
+  );
+
 const updateSchema = z.object({
   brandName: z.string().trim().min(1, "ブランド名を入力してください。"),
   brandColor: z.string().trim().optional(),
   planId: z.string().uuid().optional(),
   status: z.enum(["active", "suspended"]),
+  brandLogoUrl: optionalUrl,
+  brandFaviconUrl: optionalUrl,
+  brandDomain: optionalText,
+  senderName: optionalText,
+  supportEmail: optionalText,
+  companyName: optionalText,
+  termsUrl: optionalUrl,
+  privacyUrl: optionalUrl,
 });
 
 export interface UpdateWhiteLabelState {
@@ -104,6 +131,14 @@ export async function updateWhiteLabelAction(
     brandColor: String(formData.get("brandColor") ?? "").trim() || undefined,
     planId: planIdRaw || undefined,
     status: formData.get("status"),
+    brandLogoUrl: formData.get("brandLogoUrl") ?? "",
+    brandFaviconUrl: formData.get("brandFaviconUrl") ?? "",
+    brandDomain: formData.get("brandDomain") ?? "",
+    senderName: formData.get("senderName") ?? "",
+    supportEmail: formData.get("supportEmail") ?? "",
+    companyName: formData.get("companyName") ?? "",
+    termsUrl: formData.get("termsUrl") ?? "",
+    privacyUrl: formData.get("privacyUrl") ?? "",
   });
 
   if (!parsed.success) {
@@ -119,6 +154,14 @@ export async function updateWhiteLabelAction(
       brandColor: parsed.data.brandColor,
       planId: parsed.data.planId ?? null,
       status: parsed.data.status,
+      brandLogoUrl: parsed.data.brandLogoUrl ?? null,
+      brandFaviconUrl: parsed.data.brandFaviconUrl ?? null,
+      brandDomain: parsed.data.brandDomain ?? null,
+      senderName: parsed.data.senderName ?? null,
+      supportEmail: parsed.data.supportEmail ?? null,
+      companyName: parsed.data.companyName ?? null,
+      termsUrl: parsed.data.termsUrl ?? null,
+      privacyUrl: parsed.data.privacyUrl ?? null,
     });
   } catch (e) {
     return {

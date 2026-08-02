@@ -9,6 +9,10 @@ interface AppShellProps {
   items: NavItem[];
   userName: string | null;
   userEmail: string | null;
+  /** OEMのロゴ画像URL。未指定なら既定のアイコンを表示する。 */
+  brandLogoUrl?: string | null;
+  /** OEMのブランドカラー。未指定なら既定色を使う。 */
+  brandColor?: string | null;
   children: React.ReactNode;
 }
 
@@ -17,6 +21,8 @@ export function AppShell({
   items,
   userName,
   userEmail,
+  brandLogoUrl = null,
+  brandColor = null,
   children,
 }: AppShellProps) {
   const [open, setOpen] = useState(false);
@@ -30,6 +36,8 @@ export function AppShell({
           items={items}
           userName={userName}
           userEmail={userEmail}
+          brandLogoUrl={brandLogoUrl}
+          brandColor={brandColor}
         />
         <div className="px-4 pb-4">
           <form action={logout} className="w-full">
@@ -61,6 +69,8 @@ export function AppShell({
           items={items}
           userName={userName}
           userEmail={userEmail}
+          brandLogoUrl={brandLogoUrl}
+          brandColor={brandColor}
         />
         <div className="px-4 pb-4">
           <form action={logout} className="w-full">
