@@ -120,6 +120,89 @@ export async function getStripeSettingsResolved(
   };
 }
 
+/**
+ * WLオーナーの設定画面表示用：自OEM単位の行だけをマスクして返す。
+ *
+ * フォールバックは行わない。WLオーナーが編集するのは「自分のOEM行」であり、
+ * HQ行の内容を表示すると他人の設定を自分のものと誤認する恐れがあるため。
+ */
+export async function getStripeSettingsMaskedForWhiteLabel(
+  whiteLabelId: string,
+): Promise<StripeSettingsMasked | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("stripe_accounts")
+    .select(STRIPE_ACCOUNT_COLUMNS)
+    .is("client_id", null)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  if (error) throwSafe("Stripe設定の取得に失敗", error);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  return {
+    hasSecretKey: !!(row.access_token_enc as string),
+    hasWebhookSecret: !!(row.webhook_secret_enc as string),
+    isLive: !!(row.is_live as boolean),
+    tier: "white_label",
+  };
+}
+
+/**
+ * OEM（WL）単位のStripe設定を upsert する。
+ *
+ * `client_id IS NULL AND white_label_id = <指定ID>` の行だけを対象とする。
+ * 配下クライアントが自前の設定を持たない場合のフォールバック元になる。
+ */
+export async function upsertStripeSettingsForWhiteLabel(
+  whiteLabelId: string,
+  input: UpsertStripeSettingsInput,
+): Promise<void> {
+  const admin = createAdminClient();
+
+  const { data: existing } = await admin
+    .from("stripe_accounts")
+    .select("id, access_token_enc, webhook_secret_enc")
+    .is("client_id", null)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  const existingRow = existing as Record<string, unknown> | null;
+
+  const payload: Record<string, unknown> = {
+    is_live: input.isLive ?? false,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.secretKey) {
+    payload.access_token_enc = encrypt(input.secretKey);
+  } else if (existingRow?.access_token_enc) {
+    payload.access_token_enc = existingRow.access_token_enc;
+  }
+
+  if (input.webhookSecret) {
+    payload.webhook_secret_enc = encrypt(input.webhookSecret);
+  } else if (existingRow?.webhook_secret_enc) {
+    payload.webhook_secret_enc = existingRow.webhook_secret_enc;
+  }
+
+  if (existingRow) {
+    const { error } = await admin
+      .from("stripe_accounts")
+      .update(payload)
+      .eq("id", existingRow.id as string);
+    if (error) throwSafe("Stripe設定の更新に失敗", error);
+  } else {
+    const { error } = await admin.from("stripe_accounts").insert({
+      ...payload,
+      client_id: null,
+      white_label_id: whiteLabelId,
+    });
+    if (error) throwSafe("Stripe設定の作成に失敗", error);
+  }
+}
+
 /** Stripe 設定を upsert する */
 export async function upsertStripeSettings(
   clientId: string,

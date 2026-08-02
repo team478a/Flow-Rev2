@@ -11,9 +11,27 @@ import type { StripeSettingsMasked } from "@/lib/repositories/stripe-settings";
 
 interface StripeSettingsFormProps {
   current: StripeSettingsMasked | null;
+  /**
+   * 保存に使うServer Action。省略時はクライアント単位の設定を保存する。
+   * OEM共通設定の画面（/wl/settings/stripe）は自OEM行を書き込むactionを渡す。
+   */
+  action?: (formData: FormData) => Promise<{ error: string | null }>;
+  /** 継承元の注記を表示するか。OEM共通設定の画面では継承元が無いため抑止する。 */
+  showInheritanceNotice?: boolean;
+  /**
+   * 接続テストボタンを表示するか。
+   * `testStripeConnectionAction()` はクライアント単位で解決した鍵を検証するため、
+   * OEM共通設定の画面では意味が異なる。既定では表示しない。
+   */
+  showConnectionTest?: boolean;
 }
 
-export function StripeSettingsForm({ current }: StripeSettingsFormProps) {
+export function StripeSettingsForm({
+  current,
+  action = saveStripeSettingsAction,
+  showInheritanceNotice = true,
+  showConnectionTest = true,
+}: StripeSettingsFormProps) {
   const [isPending, startTransition] = useTransition();
   const [isTesting, startTest] = useTransition();
   const [secretKey, setSecretKey] = useState("");
@@ -35,7 +53,7 @@ export function StripeSettingsForm({ current }: StripeSettingsFormProps) {
       if (secretKey) fd.append("secretKey", secretKey);
       if (webhookSecret) fd.append("webhookSecret", webhookSecret);
       fd.append("isLive", isLive ? "true" : "false");
-      const result = await saveStripeSettingsAction(fd);
+      const result = await action(fd);
       if (result.error) {
         setError(result.error);
       } else {
@@ -60,7 +78,9 @@ export function StripeSettingsForm({ current }: StripeSettingsFormProps) {
   const noChanges =
     !secretKey && !webhookSecret && (current?.isLive ?? false) === isLive;
   const inheritedTier =
-    current && current.tier !== "client" ? current.tier : null;
+    showInheritanceNotice && current && current.tier !== "client"
+      ? current.tier
+      : null;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">
@@ -198,7 +218,7 @@ export function StripeSettingsForm({ current }: StripeSettingsFormProps) {
           保存する
         </Button>
 
-        {current?.hasSecretKey && (
+        {showConnectionTest && current?.hasSecretKey && (
           <Button
             type="button"
             variant="outline"
