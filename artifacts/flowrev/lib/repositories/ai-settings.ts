@@ -147,3 +147,94 @@ export async function upsertHqAiSetting(
       throwSafe("AI設定の作成に失敗しました", error);
   }
 }
+
+/**
+ * OEM（WL）単位のAI設定をマスクして返す。
+ *
+ * フォールバックは行わない。WLオーナーが編集するのは自分のOEM行であり、
+ * HQ行の内容を表示すると他人の設定を自分のものと誤認する恐れがあるため。
+ */
+export async function getWlAiSettingMasked(
+  whiteLabelId: string,
+  provider: AiProvider = "anthropic",
+): Promise<AiSettingMasked | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("ai_provider_settings")
+    .select("api_key_enc, provider, model, is_active")
+    .eq("provider", provider)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  if (error) throwSafe("AI設定の取得に失敗しました", error);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  return {
+    hasApiKey: !!(row.api_key_enc as string),
+    provider: row.provider as AiProvider,
+    model: (row.model as string) ?? null,
+    isActive: row.is_active as boolean,
+  };
+}
+
+/**
+ * OEM（WL）単位のAI設定を作成または更新する。
+ * `uq_ai_provider_wl` により (white_label_id, provider) ごとに1件。
+ */
+export async function upsertWlAiSetting(
+  whiteLabelId: string,
+  input: UpsertAiSettingInput,
+): Promise<void> {
+  const supabase = createAdminClient();
+  const apiKeyEnc = encrypt(input.apiKey);
+
+  const { data: existing, error: selectError } = await supabase
+    .from("ai_provider_settings")
+    .select("id")
+    .eq("provider", input.provider)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  if (selectError) throwSafe("AI設定の取得に失敗しました", selectError);
+
+  const payload = {
+    provider: input.provider,
+    api_key_enc: apiKeyEnc,
+    model: input.model ?? null,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    const row = existing as Record<string, unknown>;
+    const { error } = await supabase
+      .from("ai_provider_settings")
+      .update(payload)
+      .eq("id", row.id as string);
+    if (error) throwSafe("AI設定の更新に失敗しました", error);
+  } else {
+    const { error } = await supabase
+      .from("ai_provider_settings")
+      .insert({ ...payload, white_label_id: whiteLabelId });
+    if (error) throwSafe("AI設定の作成に失敗しました", error);
+  }
+}
+
+/**
+ * OEM単位のAI設定のモデル名だけを更新する（APIキーは変更しない）。
+ * 設定画面でキー欄を空のまま保存した場合に使う。
+ */
+export async function updateWlAiSettingModel(
+  whiteLabelId: string,
+  provider: AiProvider,
+  model: string | null,
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("ai_provider_settings")
+    .update({ model, updated_at: new Date().toISOString() })
+    .eq("provider", provider)
+    .eq("white_label_id", whiteLabelId);
+  if (error) throwSafe("AI設定の更新に失敗しました", error);
+}

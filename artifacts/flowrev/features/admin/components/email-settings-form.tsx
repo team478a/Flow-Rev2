@@ -28,13 +28,19 @@ function SubmitButton() {
 
 export function EmailSettingsForm({
   current,
+  action = saveEmailSettingAction,
 }: {
   current: EmailSettingMasked | null;
+  /**
+   * 保存に使うServer Action。省略時はHQ共通設定を保存する。
+   * OEM共通設定の画面（/wl/settings/email）は自OEM行を書き込むactionを渡す。
+   */
+  action?: (
+    prev: SaveEmailSettingState,
+    formData: FormData,
+  ) => Promise<SaveEmailSettingState>;
 }) {
-  const [state, formAction] = useFormState(
-    saveEmailSettingAction,
-    initialState,
-  );
+  const [state, formAction] = useFormState(action, initialState);
 
   return (
     <form action={formAction} className="flex flex-col gap-5">

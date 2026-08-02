@@ -287,3 +287,99 @@ export async function upsertCloudflareSettings(
     if (error) throwSafe("Cloudflare設定の作成に失敗", error);
   }
 }
+
+/**
+ * OEM（WL）単位のCloudflare設定をマスクして返す。
+ * フォールバックは行わない（WLオーナーが編集するのは自分のOEM行のため）。
+ */
+export async function getCloudflareSettingsMaskedForWhiteLabel(
+  whiteLabelId: string,
+): Promise<CloudflareSettingsMasked | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("cloudflare_settings")
+    .select(CLOUDFLARE_COLUMNS)
+    .is("client_id", null)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  if (error) throwSafe("Cloudflare設定の取得に失敗", error);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  return {
+    accountId: (row.account_id as string) ?? null,
+    hasApiToken: !!(row.api_token_enc as string),
+    hasWebhookSecret: !!(row.webhook_secret_enc as string),
+    alertEmails: (row.alert_emails as string) ?? null,
+    lastCheckedAt: (row.last_checked_at as string) ?? null,
+    lastAlertedAt: (row.last_alerted_at as string) ?? null,
+    lastUnprotectedCount:
+      row.last_unprotected_count != null
+        ? (row.last_unprotected_count as number)
+        : null,
+    tier: "white_label",
+  };
+}
+
+/**
+ * OEM（WL）単位のCloudflare設定を upsert する。
+ * `client_id IS NULL AND white_label_id = <指定ID>` の行のみを対象とする。
+ */
+export async function upsertCloudflareSettingsForWhiteLabel(
+  whiteLabelId: string,
+  input: UpsertCloudflareSettingsInput,
+): Promise<void> {
+  const admin = createAdminClient();
+
+  const { data: existing } = await admin
+    .from("cloudflare_settings")
+    .select("id, account_id, api_token_enc, webhook_secret_enc, alert_emails")
+    .is("client_id", null)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  const existingRow = existing as Record<string, unknown> | null;
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.accountId !== undefined) {
+    payload.account_id = input.accountId || null;
+  } else if (existingRow?.account_id) {
+    payload.account_id = existingRow.account_id;
+  }
+
+  if (input.apiToken) {
+    payload.api_token_enc = encrypt(input.apiToken);
+  } else if (existingRow?.api_token_enc) {
+    payload.api_token_enc = existingRow.api_token_enc;
+  }
+
+  if (input.webhookSecret) {
+    payload.webhook_secret_enc = encrypt(input.webhookSecret);
+  } else if (existingRow?.webhook_secret_enc) {
+    payload.webhook_secret_enc = existingRow.webhook_secret_enc;
+  }
+
+  if (input.alertEmails !== undefined) {
+    payload.alert_emails = input.alertEmails;
+  } else if (existingRow?.alert_emails) {
+    payload.alert_emails = existingRow.alert_emails;
+  }
+
+  if (existingRow) {
+    const { error } = await admin
+      .from("cloudflare_settings")
+      .update(payload)
+      .eq("id", existingRow.id as string);
+    if (error) throwSafe("Cloudflare設定の更新に失敗", error);
+  } else {
+    const { error } = await admin.from("cloudflare_settings").insert({
+      ...payload,
+      client_id: null,
+      white_label_id: whiteLabelId,
+    });
+    if (error) throwSafe("Cloudflare設定の作成に失敗", error);
+  }
+}
