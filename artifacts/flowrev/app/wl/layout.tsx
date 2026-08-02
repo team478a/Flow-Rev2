@@ -8,8 +8,11 @@ const NAV_ITEMS: NavItem[] = [
   { label: "ダッシュボード", href: "/wl/dashboard", icon: "⊞" },
   { label: "クライアント管理", href: "/wl/clients", icon: "🏢" },
   { label: "プラン管理", href: "/wl/plans", icon: "📋" },
+  { label: "AI 共通設定", href: "/wl/settings/ai", icon: "🤖" },
+  { label: "メール共通設定", href: "/wl/settings/email", icon: "✉️" },
   { label: "LINE 共通設定", href: "/wl/settings/line", icon: "💬" },
   { label: "Stripe 共通設定", href: "/wl/settings/stripe", icon: "💳" },
+  { label: "Cloudflare 共通設定", href: "/wl/settings/cloudflare", icon: "🎬" },
 ];
 
 export default async function WlLayout({

@@ -147,3 +147,96 @@ export async function getActiveEmailSetting(
     whiteLabelId: null,
   };
 }
+
+/**
+ * OEM（WL）単位のメール設定を作成または更新する。
+ * `uq_email_settings_wl` により (white_label_id, provider) ごとに1件。
+ */
+export async function upsertWlEmailSetting(
+  whiteLabelId: string,
+  input: UpsertHqEmailSettingInput,
+): Promise<void> {
+  const supabase = createAdminClient();
+  const apiKeyEnc = encrypt(input.apiKey);
+
+  const { data: existing, error: selectError } = await supabase
+    .from("email_settings")
+    .select("id")
+    .eq("white_label_id", whiteLabelId)
+    .eq("provider", PROVIDER)
+    .maybeSingle();
+
+  if (selectError) throwSafe("メール設定の取得に失敗しました", selectError);
+
+  const payload = {
+    provider: PROVIDER,
+    api_key_enc: apiKeyEnc,
+    from_email: input.fromEmail,
+    from_name: input.fromName ?? null,
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+
+  if (existing) {
+    const { error } = await supabase
+      .from("email_settings")
+      .update(payload)
+      .eq("id", (existing as Record<string, unknown>).id as string);
+    if (error) throwSafe("メール設定の更新に失敗しました", error);
+    return;
+  }
+
+  const { error } = await supabase
+    .from("email_settings")
+    .insert({ ...payload, white_label_id: whiteLabelId });
+  if (error) throwSafe("メール設定の作成に失敗しました", error);
+}
+
+/**
+ * OEM（WL）単位のメール設定をマスクして返す。
+ * フォールバックは行わない（WLオーナーが編集するのは自分のOEM行のため）。
+ */
+export async function getWlEmailSettingMasked(
+  whiteLabelId: string,
+): Promise<EmailSettingMasked | null> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from("email_settings")
+    .select("api_key_enc, from_email, from_name, is_active")
+    .eq("white_label_id", whiteLabelId)
+    .eq("provider", PROVIDER)
+    .maybeSingle();
+
+  if (error) throwSafe("メール設定の取得に失敗しました", error);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  return {
+    hasApiKey: !!(row.api_key_enc as string),
+    fromEmail: (row.from_email as string) ?? null,
+    fromName: (row.from_name as string) ?? null,
+    isActive: row.is_active as boolean,
+  };
+}
+
+/**
+ * OEM単位のメール設定のうち、送信元情報だけを更新する（APIキーは変更しない）。
+ * 設定画面でキー欄を空のまま保存した場合に使う。
+ */
+export async function updateWlEmailSettingProfile(
+  whiteLabelId: string,
+  fromEmail: string,
+  fromName: string | null,
+): Promise<void> {
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("email_settings")
+    .update({
+      from_email: fromEmail,
+      from_name: fromName,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("white_label_id", whiteLabelId)
+    .eq("provider", PROVIDER);
+  if (error) throwSafe("メール設定の更新に失敗しました", error);
+}
