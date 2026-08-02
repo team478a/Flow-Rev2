@@ -14,6 +14,7 @@
 -- 危険になる。正しい条件への修正は 0011_fix_ai_rls_policy.sql で行う
 -- （このファイル自体は過去に適用された可能性があるため書き換えない）。
 
+DROP POLICY IF EXISTS "system_admin：AI設定全操作" ON ai_provider_settings;
 CREATE POLICY "system_admin：AI設定全操作"
   ON ai_provider_settings
   FOR ALL

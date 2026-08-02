@@ -20,11 +20,13 @@ ALTER TABLE line_accounts ENABLE ROW LEVEL SECURITY;
 CREATE INDEX IF NOT EXISTS idx_line_accounts_client_id ON line_accounts(client_id);
 
 -- RLS ポリシー
+DROP POLICY IF EXISTS "client_owner: line_accounts 自テナント管理" ON line_accounts;
 CREATE POLICY "client_owner: line_accounts 自テナント管理"
   ON line_accounts FOR ALL
   USING (get_user_role() = 'client_owner' AND client_id = get_user_client_id())
   WITH CHECK (get_user_role() = 'client_owner' AND client_id = get_user_client_id());
 
+DROP POLICY IF EXISTS "system_admin: line_accounts 全操作" ON line_accounts;
 CREATE POLICY "system_admin: line_accounts 全操作"
   ON line_accounts FOR ALL
   USING (get_user_role() = 'system_admin')

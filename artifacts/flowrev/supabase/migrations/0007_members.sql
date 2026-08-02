@@ -57,6 +57,7 @@ ALTER TABLE lessons         ENABLE ROW LEVEL SECURITY;
 ALTER TABLE lesson_progress ENABLE ROW LEVEL SECURITY;
 
 -- コース：client_owner 全操作
+DROP POLICY IF EXISTS "client_owner：コース操作" ON courses;
 CREATE POLICY "client_owner：コース操作" ON courses
   FOR ALL
   USING (client_id = get_user_client_id())
@@ -66,6 +67,7 @@ CREATE POLICY "client_owner：コース操作" ON courses
   );
 
 -- レッスン：client_owner 全操作
+DROP POLICY IF EXISTS "client_owner：レッスン操作" ON lessons;
 CREATE POLICY "client_owner：レッスン操作" ON lessons
   FOR ALL
   USING (client_id = get_user_client_id())
@@ -75,6 +77,7 @@ CREATE POLICY "client_owner：レッスン操作" ON lessons
   );
 
 -- 受講進捗：client_owner 参照のみ
+DROP POLICY IF EXISTS "client_owner：進捗参照" ON lesson_progress;
 CREATE POLICY "client_owner：進捗参照" ON lesson_progress
   FOR SELECT
   USING (white_label_id = get_user_white_label_id());

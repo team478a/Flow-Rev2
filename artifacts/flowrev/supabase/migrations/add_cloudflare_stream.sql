@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS cloudflare_settings (
 
 ALTER TABLE cloudflare_settings ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "system_admin: cloudflare_settings 全操作" ON cloudflare_settings;
 CREATE POLICY "system_admin: cloudflare_settings 全操作"
   ON cloudflare_settings FOR ALL
   USING (get_user_role() = 'system_admin')
