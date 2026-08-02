@@ -11,10 +11,12 @@ create table if not exists cloudflare_protect_logs (
 -- system_admin のみ参照・挿入可（RLS）
 alter table cloudflare_protect_logs enable row level security;
 
+DROP POLICY IF EXISTS "system_admin can select protect logs" ON cloudflare_protect_logs;
 create policy "system_admin can select protect logs"
   on cloudflare_protect_logs for select
   using (get_user_role() = 'system_admin');
 
+DROP POLICY IF EXISTS "system_admin can insert protect logs" ON cloudflare_protect_logs;
 create policy "system_admin can insert protect logs"
   on cloudflare_protect_logs for insert
   with check (get_user_role() = 'system_admin');

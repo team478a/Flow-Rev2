@@ -51,6 +51,7 @@ ALTER TABLE scenario_steps    ENABLE ROW LEVEL SECURITY;
 ALTER TABLE scenario_logs     ENABLE ROW LEVEL SECURITY;
 
 -- follow_scenarios ポリシー
+DROP POLICY IF EXISTS "client_owner：シナリオ操作" ON follow_scenarios;
 CREATE POLICY "client_owner：シナリオ操作" ON follow_scenarios
   FOR ALL
   USING (client_id = get_user_client_id())
@@ -60,12 +61,14 @@ CREATE POLICY "client_owner：シナリオ操作" ON follow_scenarios
   );
 
 -- scenario_steps ポリシー
+DROP POLICY IF EXISTS "client_owner：ステップ操作" ON scenario_steps;
 CREATE POLICY "client_owner：ステップ操作" ON scenario_steps
   FOR ALL
   USING (white_label_id = get_user_white_label_id())
   WITH CHECK (white_label_id = get_user_white_label_id());
 
 -- scenario_logs ポリシー（MVP: 参照のみ）
+DROP POLICY IF EXISTS "client_owner：ログ参照" ON scenario_logs;
 CREATE POLICY "client_owner：ログ参照" ON scenario_logs
   FOR SELECT
   USING (white_label_id = get_user_white_label_id());

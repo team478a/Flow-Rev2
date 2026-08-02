@@ -25,6 +25,7 @@ CREATE TABLE IF NOT EXISTS customers (
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
 -- client_owner：自テナント顧客を全操作
+DROP POLICY IF EXISTS "client_owner：自顧客のみ操作" ON customers;
 CREATE POLICY "client_owner：自顧客のみ操作" ON customers
   FOR ALL
   USING (client_id = get_user_client_id())
@@ -34,11 +35,13 @@ CREATE POLICY "client_owner：自顧客のみ操作" ON customers
   );
 
 -- customer：自分のレコードを参照のみ
+DROP POLICY IF EXISTS "customer：自分のレコード参照" ON customers;
 CREATE POLICY "customer：自分のレコード参照" ON customers
   FOR SELECT
   USING (user_id = auth.uid());
 
 -- white_label_owner：配下顧客を参照のみ
+DROP POLICY IF EXISTS "white_label_owner：配下顧客参照" ON customers;
 CREATE POLICY "white_label_owner：配下顧客参照" ON customers
   FOR SELECT
   USING (white_label_id = get_user_white_label_id());

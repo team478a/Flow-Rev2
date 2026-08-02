@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS cloudflare_webhook_logs (
 
 ALTER TABLE cloudflare_webhook_logs ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "system_admin: cloudflare_webhook_logs 全操作" ON cloudflare_webhook_logs;
 CREATE POLICY "system_admin: cloudflare_webhook_logs 全操作"
   ON cloudflare_webhook_logs FOR ALL
   USING (get_user_role() = 'system_admin')

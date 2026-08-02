@@ -9,6 +9,7 @@ VALUES ('product-images', 'product-images', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- client_owner：自 client_id フォルダのみアップロード可
+DROP POLICY IF EXISTS "client_owner：自フォルダのみアップロード可" ON storage.objects;
 CREATE POLICY "client_owner：自フォルダのみアップロード可"
 ON storage.objects FOR INSERT
 WITH CHECK (
@@ -17,6 +18,7 @@ WITH CHECK (
 );
 
 -- client_owner：自 client_id フォルダのみ参照可
+DROP POLICY IF EXISTS "client_owner：自フォルダのみ参照可" ON storage.objects;
 CREATE POLICY "client_owner：自フォルダのみ参照可"
 ON storage.objects FOR SELECT
 USING (
@@ -25,6 +27,7 @@ USING (
 );
 
 -- client_owner：自 client_id フォルダのみ削除可
+DROP POLICY IF EXISTS "client_owner：自フォルダのみ削除可" ON storage.objects;
 CREATE POLICY "client_owner：自フォルダのみ削除可"
 ON storage.objects FOR DELETE
 USING (
