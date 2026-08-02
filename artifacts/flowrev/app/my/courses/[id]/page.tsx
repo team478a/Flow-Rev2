@@ -128,6 +128,7 @@ async function resolveAuthorizedCfToken(
   lesson: LessonRow | null,
   customerId: string | null,
   courseProductId: string | null,
+  clientId: string,
 ): Promise<string | null> {
   if (
     !lesson ||
@@ -148,7 +149,10 @@ async function resolveAuthorizedCfToken(
     if (!purchased) return null;
   }
 
-  const settings = await getCloudflareSettingsResolved().catch(() => null);
+  // 視聴者が所属するクライアントを基点に、クライアント→WL→HQの順で解決する。
+  const settings = await getCloudflareSettingsResolved(clientId).catch(
+    () => null,
+  );
   if (!settings) return null;
 
   return getStreamSignedToken(
@@ -233,6 +237,7 @@ export default async function MyCoursePage({ params, searchParams }: Props) {
     selectedLesson,
     customerId,
     course.productId ?? null,
+    session.clientId,
   );
 
   const done = completedIds.size;
