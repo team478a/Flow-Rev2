@@ -1,5 +1,6 @@
 import { AppShell } from "@/features/dashboard/components/app-shell";
 import { requireWhiteLabelOwner } from "@/features/wl/guard";
+import { getWhiteLabelBranding } from "@/lib/repositories/white-labels";
 import type { NavItem } from "@/features/dashboard/components/sidebar-nav";
 
 export const dynamic = "force-dynamic";
@@ -22,12 +23,19 @@ export default async function WlLayout({
 }) {
   const session = await requireWhiteLabelOwner();
 
+  // 自OEMのブランド設定を反映する。未設定なら本部の既定表示にフォールバックする。
+  const branding = session.whiteLabelId
+    ? await getWhiteLabelBranding(session.whiteLabelId).catch(() => null)
+    : null;
+
   return (
     <AppShell
-      brand="FlowRev WL"
+      brand={branding?.brandName ?? "FlowRev WL"}
       items={NAV_ITEMS}
       userName={session.displayName}
       userEmail={session.email}
+      brandLogoUrl={branding?.brandLogoUrl ?? null}
+      brandColor={branding?.brandColor ?? null}
     >
       {children}
     </AppShell>

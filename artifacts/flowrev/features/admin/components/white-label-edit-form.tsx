@@ -91,6 +91,132 @@ export function WhiteLabelEditForm({ wl, plans }: Props) {
         />
       </div>
 
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium text-foreground">
+          ブランド表示
+        </legend>
+        <p className="-mt-1 text-xs text-muted-foreground">
+          設定した内容は、この代理店の管理画面と配下クライアントの画面に表示されます。
+          未設定の項目は本部（FlowRev）の既定表示が使われます。
+        </p>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="brandLogoUrl" className={labelClass}>
+            ロゴ画像URL
+          </label>
+          <input
+            id="brandLogoUrl"
+            name="brandLogoUrl"
+            type="url"
+            defaultValue={wl.brandLogoUrl ?? ""}
+            placeholder="https://example.com/logo.png"
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="brandFaviconUrl" className={labelClass}>
+            ファビコンURL
+          </label>
+          <input
+            id="brandFaviconUrl"
+            name="brandFaviconUrl"
+            type="url"
+            defaultValue={wl.brandFaviconUrl ?? ""}
+            placeholder="https://example.com/favicon.ico"
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="brandDomain" className={labelClass}>
+            独自ドメイン
+          </label>
+          <input
+            id="brandDomain"
+            name="brandDomain"
+            defaultValue={wl.brandDomain ?? ""}
+            placeholder="app.example.com"
+            className={inputClass}
+          />
+          <p className="text-xs text-muted-foreground">
+            記録用の項目です。実際のドメイン割り当てはVercel側の設定が別途必要です。
+          </p>
+        </div>
+      </fieldset>
+
+      <fieldset className="flex flex-col gap-4 rounded-lg border border-border p-4">
+        <legend className="px-1 text-sm font-medium text-foreground">
+          事業者情報
+        </legend>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="companyName" className={labelClass}>
+            運営会社名
+          </label>
+          <input
+            id="companyName"
+            name="companyName"
+            defaultValue={wl.companyName ?? ""}
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="senderName" className={labelClass}>
+            メール差出人名
+          </label>
+          <input
+            id="senderName"
+            name="senderName"
+            defaultValue={wl.senderName ?? ""}
+            placeholder="未設定ならメール設定の送信者名を使用"
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="supportEmail" className={labelClass}>
+            問い合わせ先メールアドレス
+          </label>
+          <input
+            id="supportEmail"
+            name="supportEmail"
+            type="email"
+            defaultValue={wl.supportEmail ?? ""}
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="termsUrl" className={labelClass}>
+            利用規約URL
+          </label>
+          <input
+            id="termsUrl"
+            name="termsUrl"
+            type="url"
+            defaultValue={wl.termsUrl ?? ""}
+            placeholder="https://example.com/terms"
+            className={inputClass}
+          />
+        </div>
+
+        <div className="flex flex-col gap-1.5">
+          <label htmlFor="privacyUrl" className={labelClass}>
+            プライバシーポリシーURL
+          </label>
+          <input
+            id="privacyUrl"
+            name="privacyUrl"
+            type="url"
+            defaultValue={wl.privacyUrl ?? ""}
+            placeholder="https://example.com/privacy"
+            className={inputClass}
+          />
+        </div>
+      </fieldset>
+
       {state?.error && (
         <p role="alert" className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">
           {state.error}

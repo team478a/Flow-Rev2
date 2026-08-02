@@ -71,6 +71,14 @@ export interface WhiteLabelDetail {
   id: string;
   brandName: string;
   brandColor: string | null;
+  brandLogoUrl: string | null;
+  brandDomain: string | null;
+  brandFaviconUrl: string | null;
+  senderName: string | null;
+  supportEmail: string | null;
+  companyName: string | null;
+  termsUrl: string | null;
+  privacyUrl: string | null;
   status: string;
   planId: string | null;
   ownerUserId: string | null;
@@ -79,8 +87,39 @@ export interface WhiteLabelDetail {
 export interface UpdateWhiteLabelInput {
   brandName?: string;
   brandColor?: string;
+  brandLogoUrl?: string | null;
+  brandDomain?: string | null;
+  brandFaviconUrl?: string | null;
+  senderName?: string | null;
+  supportEmail?: string | null;
+  companyName?: string | null;
+  termsUrl?: string | null;
+  privacyUrl?: string | null;
   planId?: string | null;
   status?: string;
+}
+
+const WHITE_LABEL_DETAIL_COLUMNS =
+  "id, brand_name, brand_color, brand_logo_url, brand_domain, brand_favicon_url, " +
+  "sender_name, support_email, company_name, terms_url, privacy_url, status, plan_id, owner_user_id";
+
+function toWhiteLabelDetail(data: Record<string, unknown>): WhiteLabelDetail {
+  return {
+    id: data.id as string,
+    brandName: data.brand_name as string,
+    brandColor: (data.brand_color as string) ?? null,
+    brandLogoUrl: (data.brand_logo_url as string) ?? null,
+    brandDomain: (data.brand_domain as string) ?? null,
+    brandFaviconUrl: (data.brand_favicon_url as string) ?? null,
+    senderName: (data.sender_name as string) ?? null,
+    supportEmail: (data.support_email as string) ?? null,
+    companyName: (data.company_name as string) ?? null,
+    termsUrl: (data.terms_url as string) ?? null,
+    privacyUrl: (data.privacy_url as string) ?? null,
+    status: (data.status as string) ?? "active",
+    planId: (data.plan_id as string) ?? null,
+    ownerUserId: (data.owner_user_id as string) ?? null,
+  };
 }
 
 /**
@@ -90,21 +129,14 @@ export async function getWhiteLabel(id: string): Promise<WhiteLabelDetail | null
   const admin = createAdminClient();
   const { data, error } = await admin
     .from("white_labels")
-    .select("id, brand_name, brand_color, status, plan_id, owner_user_id")
+    .select(WHITE_LABEL_DETAIL_COLUMNS)
     .eq("id", id)
     .maybeSingle();
 
   if (error) throwSafe("取得に失敗しました", error);
   if (!data) return null;
 
-  return {
-    id: data.id as string,
-    brandName: data.brand_name as string,
-    brandColor: (data.brand_color as string) ?? null,
-    status: (data.status as string) ?? "active",
-    planId: (data.plan_id as string) ?? null,
-    ownerUserId: (data.owner_user_id as string) ?? null,
-  };
+  return toWhiteLabelDetail(data as unknown as Record<string, unknown>);
 }
 
 /**
@@ -118,8 +150,18 @@ export async function updateWhiteLabel(
   const payload: Record<string, unknown> = {};
   if (input.brandName !== undefined) payload.brand_name = input.brandName;
   if (input.brandColor !== undefined) payload.brand_color = input.brandColor;
+  if (input.brandLogoUrl !== undefined) payload.brand_logo_url = input.brandLogoUrl;
+  if (input.brandDomain !== undefined) payload.brand_domain = input.brandDomain;
+  if (input.brandFaviconUrl !== undefined)
+    payload.brand_favicon_url = input.brandFaviconUrl;
+  if (input.senderName !== undefined) payload.sender_name = input.senderName;
+  if (input.supportEmail !== undefined) payload.support_email = input.supportEmail;
+  if (input.companyName !== undefined) payload.company_name = input.companyName;
+  if (input.termsUrl !== undefined) payload.terms_url = input.termsUrl;
+  if (input.privacyUrl !== undefined) payload.privacy_url = input.privacyUrl;
   if (input.planId !== undefined) payload.plan_id = input.planId ?? null;
   if (input.status !== undefined) payload.status = input.status;
+  payload.updated_at = new Date().toISOString();
 
   const { error } = await admin
     .from("white_labels")
@@ -262,4 +304,46 @@ export async function createWhiteLabel(
   }
 
   return { id: wlId };
+}
+
+export interface WhiteLabelBranding {
+  brandName: string;
+  brandColor: string | null;
+  brandLogoUrl: string | null;
+  brandFaviconUrl: string | null;
+  supportEmail: string | null;
+  companyName: string | null;
+  termsUrl: string | null;
+  privacyUrl: string | null;
+}
+
+/**
+ * 画面表示に使うブランド情報だけを取得する（レイアウトから毎リクエスト呼ばれるため軽量）。
+ * 未設定・取得失敗時は null を返し、呼び出し側は本部の既定表示にフォールバックする。
+ */
+export async function getWhiteLabelBranding(
+  whiteLabelId: string,
+): Promise<WhiteLabelBranding | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("white_labels")
+    .select(
+      "brand_name, brand_color, brand_logo_url, brand_favicon_url, support_email, company_name, terms_url, privacy_url",
+    )
+    .eq("id", whiteLabelId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const row = data as unknown as Record<string, unknown>;
+  return {
+    brandName: (row.brand_name as string) ?? "FlowRev",
+    brandColor: (row.brand_color as string) ?? null,
+    brandLogoUrl: (row.brand_logo_url as string) ?? null,
+    brandFaviconUrl: (row.brand_favicon_url as string) ?? null,
+    supportEmail: (row.support_email as string) ?? null,
+    companyName: (row.company_name as string) ?? null,
+    termsUrl: (row.terms_url as string) ?? null,
+    privacyUrl: (row.privacy_url as string) ?? null,
+  };
 }
