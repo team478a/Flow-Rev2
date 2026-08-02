@@ -10,9 +10,20 @@ import type { LineSettingsMasked } from "@/lib/repositories/line-settings";
 
 interface LineSettingsFormProps {
   current: LineSettingsMasked | null;
+  /**
+   * 保存に使うServer Action。省略時はクライアント単位の設定を保存する。
+   * OEM共通設定の画面（/wl/settings/line）は自OEM行を書き込むactionを渡す。
+   */
+  action?: (formData: FormData) => Promise<{ error: string | null }>;
+  /** 継承元の注記を表示するか。OEM共通設定の画面では継承元が無いため抑止する。 */
+  showInheritanceNotice?: boolean;
 }
 
-export function LineSettingsForm({ current }: LineSettingsFormProps) {
+export function LineSettingsForm({
+  current,
+  action = saveLineSettingsAction,
+  showInheritanceNotice = true,
+}: LineSettingsFormProps) {
   const [isPending, startTransition] = useTransition();
   const [token, setToken] = useState("");
   const [secret, setSecret] = useState("");
@@ -31,7 +42,7 @@ export function LineSettingsForm({ current }: LineSettingsFormProps) {
       if (token) fd.append("channelAccessToken", token);
       if (secret) fd.append("channelSecret", secret);
       fd.append("lineFriendUrl", friendUrl);
-      const result = await saveLineSettingsAction(fd);
+      const result = await action(fd);
       if (result.error) {
         setError(result.error);
       } else {
@@ -44,7 +55,9 @@ export function LineSettingsForm({ current }: LineSettingsFormProps) {
 
   const noChanges = !token && !secret && friendUrl === (current?.lineFriendUrl ?? "");
   const inheritedTier =
-    current && current.tier !== "client" ? current.tier : null;
+    showInheritanceNotice && current && current.tier !== "client"
+      ? current.tier
+      : null;
 
   return (
     <form onSubmit={handleSubmit} className="flex flex-col gap-5">

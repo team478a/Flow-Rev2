@@ -100,6 +100,36 @@ export async function getLineSettingsMasked(
   };
 }
 
+/**
+ * WLオーナーの設定画面表示用：自OEM単位の行だけをマスクして返す。
+ *
+ * フォールバックは行わない。WLオーナーが編集するのは「自分のOEM行」であり、
+ * HQ行の内容を表示してしまうと、他人の設定を自分のものと誤認したまま
+ * 保存操作を行う恐れがあるため。未設定なら null を返す。
+ */
+export async function getLineSettingsMaskedForWhiteLabel(
+  whiteLabelId: string,
+): Promise<LineSettingsMasked | null> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("line_accounts")
+    .select(LINE_ACCOUNT_COLUMNS)
+    .is("client_id", null)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  if (error) throwSafe("LINE設定の取得に失敗", error);
+  if (!data) return null;
+
+  const row = data as Record<string, unknown>;
+  return {
+    hasChannelAccessToken: !!(row.channel_access_token_enc as string),
+    hasChannelSecret: !!(row.channel_secret_enc as string),
+    lineFriendUrl: (row.line_friend_url as string) ?? null,
+    tier: "white_label",
+  };
+}
+
 /** LINE 送信用：クライアント→WL→HQの順で解決し、復号済みトークンを返す */
 export async function getLineSettingsResolved(
   clientId: string,
@@ -122,6 +152,64 @@ export async function getLineSettingsResolved(
 }
 
 /** LINE 設定を upsert する */
+/**
+ * OEM（WL）単位のLINE設定を upsert する。
+ *
+ * `client_id IS NULL AND white_label_id = <指定ID>` の行だけを対象とする。
+ * この行は、配下クライアントが自前の設定を持たない場合の
+ * フォールバック元として `resolveLineAccountRow()` から参照される。
+ */
+export async function upsertLineSettingsForWhiteLabel(
+  whiteLabelId: string,
+  input: UpsertLineSettingsInput,
+): Promise<void> {
+  const admin = createAdminClient();
+
+  const { data: existing } = await admin
+    .from("line_accounts")
+    .select("id, channel_access_token_enc, channel_secret_enc")
+    .is("client_id", null)
+    .eq("white_label_id", whiteLabelId)
+    .maybeSingle();
+
+  const existingRow = existing as Record<string, unknown> | null;
+
+  const payload: Record<string, unknown> = {
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.channelAccessToken) {
+    payload.channel_access_token_enc = encrypt(input.channelAccessToken);
+  } else if (existingRow?.channel_access_token_enc) {
+    payload.channel_access_token_enc = existingRow.channel_access_token_enc;
+  }
+
+  if (input.channelSecret) {
+    payload.channel_secret_enc = encrypt(input.channelSecret);
+  } else if (existingRow?.channel_secret_enc) {
+    payload.channel_secret_enc = existingRow.channel_secret_enc;
+  }
+
+  if ("lineFriendUrl" in input) {
+    payload.line_friend_url = input.lineFriendUrl ?? null;
+  }
+
+  if (existingRow) {
+    const { error } = await admin
+      .from("line_accounts")
+      .update(payload)
+      .eq("id", existingRow.id as string);
+    if (error) throwSafe("LINE設定の更新に失敗", error);
+  } else {
+    const { error } = await admin.from("line_accounts").insert({
+      ...payload,
+      client_id: null,
+      white_label_id: whiteLabelId,
+    });
+    if (error) throwSafe("LINE設定の作成に失敗", error);
+  }
+}
+
 export async function upsertLineSettings(
   clientId: string,
   input: UpsertLineSettingsInput,

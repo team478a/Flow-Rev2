@@ -8,6 +8,8 @@ const NAV_ITEMS: NavItem[] = [
   { label: "ダッシュボード", href: "/wl/dashboard", icon: "⊞" },
   { label: "クライアント管理", href: "/wl/clients", icon: "🏢" },
   { label: "プラン管理", href: "/wl/plans", icon: "📋" },
+  { label: "LINE 共通設定", href: "/wl/settings/line", icon: "💬" },
+  { label: "Stripe 共通設定", href: "/wl/settings/stripe", icon: "💳" },
 ];
 
 export default async function WlLayout({
