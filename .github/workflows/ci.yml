@@ -25,6 +25,9 @@ jobs:
       - name: Typecheck (flowrev)
         run: pnpm --filter @workspace/flowrev run typecheck
 
+      - name: Test (flowrev)
+        run: pnpm --filter @workspace/flowrev run test
+
       # artifacts/mockup-sandbox is a Replit-only design-preview tool (not part of the
       # Vercel deployment) with its own pre-existing @types/react resolution issue and a
       # vite.config.ts that requires Replit-specific PORT/BASE_PATH env vars just to load.
