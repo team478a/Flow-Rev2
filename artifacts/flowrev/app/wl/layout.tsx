@@ -1,9 +1,16 @@
 import { AppShell } from "@/features/dashboard/components/app-shell";
 import { requireWhiteLabelOwner } from "@/features/wl/guard";
 import { getWhiteLabelBranding } from "@/lib/repositories/white-labels";
+import { buildBrandMetadata } from "@/features/branding/metadata";
+import { getSessionProfile } from "@/features/auth/session";
 import type { NavItem } from "@/features/dashboard/components/sidebar-nav";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const session = await getSessionProfile();
+  return buildBrandMetadata(session?.whiteLabelId ?? null, "FlowRev WL");
+}
 
 const NAV_ITEMS: NavItem[] = [
   { label: "ダッシュボード", href: "/wl/dashboard", icon: "⊞" },

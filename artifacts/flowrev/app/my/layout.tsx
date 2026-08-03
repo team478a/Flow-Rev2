@@ -3,8 +3,16 @@ import { getSessionProfile } from "@/features/auth/session";
 import { LogoutButton } from "@/features/auth/components/logout-button";
 import { redirect } from "next/navigation";
 import { Settings } from "lucide-react";
+import { getWhiteLabelBranding } from "@/lib/repositories/white-labels";
+import { BrandFooter } from "@/features/branding/brand-footer";
+import { buildBrandMetadata } from "@/features/branding/metadata";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const session = await getSessionProfile();
+  return buildBrandMetadata(session?.whiteLabelId ?? null, "マイページ | FlowRev");
+}
 
 export default async function MyLayout({
   children,
@@ -15,11 +23,29 @@ export default async function MyLayout({
   if (!session) redirect("/login");
   if (session.role !== "customer") redirect("/dashboard");
 
+  // 顧客には、所属OEMのブランドが見える。未設定なら本部の既定表示になる。
+  const branding = session.whiteLabelId
+    ? await getWhiteLabelBranding(session.whiteLabelId).catch(() => null)
+    : null;
+
   return (
-    <div className="min-h-screen bg-background">
+    <div className="flex min-h-screen flex-col bg-background">
       <header className="border-b bg-card px-4 py-3 flex items-center justify-between gap-4">
-        <Link href="/my" className="font-semibold text-lg tracking-tight shrink-0">
-          マイページ
+        <Link
+          href="/my"
+          className="flex items-center gap-2 font-semibold text-lg tracking-tight shrink-0"
+          style={branding?.brandColor ? { color: branding.brandColor } : undefined}
+        >
+          {branding?.brandLogoUrl && (
+            // 外部URLを許容するため next/image ではなく img を使う
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={branding.brandLogoUrl}
+              alt={branding.brandName}
+              className="h-7 w-7 shrink-0 rounded object-contain"
+            />
+          )}
+          {branding?.brandName ?? "マイページ"}
         </Link>
         <nav className="flex items-center gap-3 text-sm ml-auto">
           <Link
@@ -41,7 +67,8 @@ export default async function MyLayout({
           <LogoutButton />
         </nav>
       </header>
-      <main className="max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <main className="w-full max-w-5xl mx-auto px-4 py-8">{children}</main>
+      <BrandFooter branding={branding} />
     </div>
   );
 }
