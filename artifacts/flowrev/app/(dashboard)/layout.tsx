@@ -3,9 +3,16 @@ import { requireClientOwner } from "@/features/wl/guard";
 import type { NavItem } from "@/features/dashboard/components/sidebar-nav";
 import { getClientPlanFeatures } from "@/lib/features/client-features";
 import { getWhiteLabelBranding } from "@/lib/repositories/white-labels";
+import { buildBrandMetadata } from "@/features/branding/metadata";
+import { getSessionProfile } from "@/features/auth/session";
 import { hasFeature, type PlanFeatureKey } from "@/lib/features/plan-features";
 
 export const dynamic = "force-dynamic";
+
+export async function generateMetadata() {
+  const session = await getSessionProfile();
+  return buildBrandMetadata(session?.whiteLabelId ?? null, "FlowRev");
+}
 
 type NavDef = NavItem & { featureKey?: PlanFeatureKey };
 
