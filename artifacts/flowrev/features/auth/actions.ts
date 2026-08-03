@@ -3,6 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { createEmailAuthClient } from "@/lib/supabase/email-auth";
 import { checkRateLimit, getClientIp, hashForRateLimitKey } from "@/lib/rate-limit";
 import { roleHomePath } from "./role";
 import { getSessionProfile } from "./session";
@@ -110,7 +111,10 @@ export async function requestPasswordReset(
       : (headersList.get("x-forwarded-proto") ?? "http");
   const origin = `${proto}://${host}`;
 
-  const supabase = createClient();
+  // PKCEを使わないクライアントで送る。理由は lib/supabase/email-auth.ts を参照。
+  // createServerClient（PKCE固定）で送ると、/auth/confirm の verifyOtp が
+  // 必ず失敗するトークンがメールに載る。
+  const supabase = createEmailAuthClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
     // 新パスワード設定画面のURLは `/update-password`。
     // 実体は app/(auth)/update-password/page.tsx にあるが、`(auth)` は

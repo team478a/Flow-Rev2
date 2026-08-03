@@ -123,7 +123,39 @@ https://<本番ドメイン>/**
 
 ---
 
-## 4. パスワードリセット導線の不具合（本タスクで発見・修正）
+## 4. パスワードリセット導線の不具合（本タスクで発見・修正／2件）
+
+### 4-0. PKCEに紐付いたトークンは `verifyOtp` で検証できない
+
+**症状**: テンプレートを `token_hash` 方式に変更し、Site URL・Redirect URLs も正しく設定した状態で、パスワードリセットのリンクを踏むと `/login?error=link_expired` になる。何度送り直しても、別のメールアドレスに送っても同じ。招待メールは同じ仕組みで成功する。
+
+**原因**: インストール済みライブラリの実装で確認した。
+
+1. `@supabase/ssr` の `createServerClient` は **`flowType: "pkce"` を固定で設定する**
+   （`dist/main/createServerClient.js`）
+2. PKCEのとき `resetPasswordForEmail` は `code_challenge` をSupabaseへ送る
+   （`GoTrueClient.js` の `resetPasswordForEmail`）
+3. その結果Supabaseは**PKCEに紐付いたトークン**を発行し、メールの `{{ .TokenHash }}` もそれになる
+4. ところが `verifyOtp` は `POST /verify` に `{ type, token_hash }` を送るだけで、
+   **`code_verifier` を一切送らない**（`GoTrueClient.js` の `verifyOtp` にPKCE分岐が存在しない）
+
+したがって、PKCEで発行されたトークンは `/auth/confirm` で**構造的に検証できない**。リンクが新しかろうが、何度送り直そうが必ず失敗する。
+
+**招待メールだけが動いていた理由**: `inviteUserByEmail` は `service_role` の管理クライアント（`createAdminClient`）経由で呼ばれる。こちらは `@supabase/ssr` を通らないためPKCEが働かず、`{{ .TokenHash }}` が通常のトークンになる。**同じ `token_hash` 方式なのに招待だけ成功しリセットだけ失敗する**という切り分けにくい差は、ここから出ていた。
+
+**修正**: `lib/supabase/email-auth.ts` を新設し、認証メール送信専用の匿名クライアント（`flowType: "implicit"`、`persistSession: false`）を使う。`code_challenge` を送らなくなるため `{{ .TokenHash }}` は招待と同じ通常のトークンになり、`/auth/confirm` で検証できる。
+
+```ts
+return createSupabaseClient(normalizeSupabaseUrl(url), anonKey, {
+  auth: { flowType: "implicit", persistSession: false, autoRefreshToken: false },
+});
+```
+
+セッションを発行しない送信専用の用途なので、Cookieの読み書きも不要になる。
+
+**注意**: `/auth/callback`（`?code=` を `exchangeCodeForSession` で交換する）はPKCE用として残してある。今回の変更はパスワードリセットの送信経路のみに閉じている。
+
+### 4-1. リンク先が存在しないURLを指していた
 
 ### 症状
 
