@@ -112,7 +112,12 @@ export async function requestPasswordReset(
 
   const supabase = createClient();
   const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    redirectTo: `${origin}/auth/confirm?next=/auth/update-password`,
+    // 新パスワード設定画面のURLは `/update-password`。
+    // 実体は app/(auth)/update-password/page.tsx にあるが、`(auth)` は
+    // Next.js のルートグループなのでURLには現れない。
+    // ここを `/auth/update-password` にすると、token_hash の検証自体は成功するのに
+    // 直後のリダイレクト先が404になり、パスワードを再設定できない。
+    redirectTo: `${origin}/auth/confirm?next=/update-password`,
   });
 
   if (error && error.status !== 429) {

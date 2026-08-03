@@ -12,7 +12,7 @@ import { normalizeSupabaseUrl } from "./url";
  * - /p/                      : 公開 LP（顧客向け）
  * - /api/p/                  : 公開 LP のフォーム送信 API（匿名アクセス）
  */
-const PUBLIC_PREFIXES = [
+export const PUBLIC_PREFIXES = [
   "/login",
   "/register",
   "/reset-password",
