@@ -73,6 +73,23 @@ describe("メール認証リンクの受け口", () => {
     // 検証に失敗した以上、next へ進ませてはいけない
     expect(res.headers.get("location")).toContain("/login?error=link_expired");
   });
+
+  it("検証失敗の理由をサーバーログに残す（token_hash は残さない）", async () => {
+    // 期限切れ・使用済み・type不一致がすべて同じ画面に着地するため、
+    // ログに内訳が出ないと運用側で切り分けられない。
+    // 一方 token_hash は有効なら認証情報そのものなので、記録してはいけない。
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    verifyOtp.mockResolvedValue({ error: { message: "Token has expired" } });
+
+    await call(`${BASE}?token_hash=secret-token-value&type=recovery`);
+
+    const logged = warn.mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("Token has expired");
+    expect(logged).toContain("recovery");
+    expect(logged).not.toContain("secret-token-value");
+
+    warn.mockRestore();
+  });
 });
 
 describe("next の扱い", () => {
