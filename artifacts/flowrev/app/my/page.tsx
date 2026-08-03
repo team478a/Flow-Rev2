@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BookOpen, CheckCircle2 } from "lucide-react";
 import { getSessionProfile } from "@/features/auth/session";
 import { redirect } from "next/navigation";
+import { softFail } from "@/lib/observability/soft-fail";
 import { listPublishedCourses } from "@/lib/repositories/courses-public";
 import {
   getCustomerIdByUserId,
@@ -29,10 +30,19 @@ export default async function MyPage({ searchParams }: Props) {
   }
 
   const [courses, customerId, stripeSettings] = await Promise.all([
-    listPublishedCourses(session.clientId).catch(() => []),
+    listPublishedCourses(session.clientId).catch(softFail("コース一覧", [])),
     getCustomerIdByUserId(session.userId),
-    getStripeSettingsMasked(session.clientId).catch(() => null),
+    getStripeSettingsMasked(session.clientId).catch(softFail("Stripe設定", null)),
   ]);
+
+  if (courses.length === 0) {
+    // 「コースが未作成」と「アプリが見ているテナント／DBが想定と違う」は
+    // 画面上まったく同じに見える。突き合わせに必要なIDだけ残す
+    // （どちらもUUIDで、個人情報は含まない）。
+    console.warn(
+      `[my] 公開コース0件 (client=${session.clientId}, wl=${session.whiteLabelId})`,
+    );
+  }
 
   const completedCounts = customerId
     ? await getCompletedCountsByCourse(customerId).catch(
