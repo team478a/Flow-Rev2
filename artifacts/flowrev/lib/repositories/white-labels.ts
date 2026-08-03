@@ -74,7 +74,6 @@ export interface WhiteLabelDetail {
   brandLogoUrl: string | null;
   brandDomain: string | null;
   brandFaviconUrl: string | null;
-  senderName: string | null;
   supportEmail: string | null;
   companyName: string | null;
   termsUrl: string | null;
@@ -90,7 +89,6 @@ export interface UpdateWhiteLabelInput {
   brandLogoUrl?: string | null;
   brandDomain?: string | null;
   brandFaviconUrl?: string | null;
-  senderName?: string | null;
   supportEmail?: string | null;
   companyName?: string | null;
   termsUrl?: string | null;
@@ -101,7 +99,7 @@ export interface UpdateWhiteLabelInput {
 
 const WHITE_LABEL_DETAIL_COLUMNS =
   "id, brand_name, brand_color, brand_logo_url, brand_domain, brand_favicon_url, " +
-  "sender_name, support_email, company_name, terms_url, privacy_url, status, plan_id, owner_user_id";
+  "support_email, company_name, terms_url, privacy_url, status, plan_id, owner_user_id";
 
 function toWhiteLabelDetail(data: Record<string, unknown>): WhiteLabelDetail {
   return {
@@ -111,7 +109,6 @@ function toWhiteLabelDetail(data: Record<string, unknown>): WhiteLabelDetail {
     brandLogoUrl: (data.brand_logo_url as string) ?? null,
     brandDomain: (data.brand_domain as string) ?? null,
     brandFaviconUrl: (data.brand_favicon_url as string) ?? null,
-    senderName: (data.sender_name as string) ?? null,
     supportEmail: (data.support_email as string) ?? null,
     companyName: (data.company_name as string) ?? null,
     termsUrl: (data.terms_url as string) ?? null,
@@ -154,7 +151,6 @@ export async function updateWhiteLabel(
   if (input.brandDomain !== undefined) payload.brand_domain = input.brandDomain;
   if (input.brandFaviconUrl !== undefined)
     payload.brand_favicon_url = input.brandFaviconUrl;
-  if (input.senderName !== undefined) payload.sender_name = input.senderName;
   if (input.supportEmail !== undefined) payload.support_email = input.supportEmail;
   if (input.companyName !== undefined) payload.company_name = input.companyName;
   if (input.termsUrl !== undefined) payload.terms_url = input.termsUrl;

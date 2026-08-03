@@ -163,19 +163,6 @@ export function WhiteLabelEditForm({ wl, plans }: Props) {
         </div>
 
         <div className="flex flex-col gap-1.5">
-          <label htmlFor="senderName" className={labelClass}>
-            メール差出人名
-          </label>
-          <input
-            id="senderName"
-            name="senderName"
-            defaultValue={wl.senderName ?? ""}
-            placeholder="未設定ならメール設定の送信者名を使用"
-            className={inputClass}
-          />
-        </div>
-
-        <div className="flex flex-col gap-1.5">
           <label htmlFor="supportEmail" className={labelClass}>
             問い合わせ先メールアドレス
           </label>
