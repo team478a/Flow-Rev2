@@ -3,7 +3,7 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
-import { createEmailAuthClient } from "@/lib/supabase/email-auth";
+import { sendAuthEmail } from "@/lib/email/send-auth-email";
 import { checkRateLimit, getClientIp, hashForRateLimitKey } from "@/lib/rate-limit";
 import { roleHomePath } from "./role";
 import { getSessionProfile } from "./session";
@@ -111,21 +111,28 @@ export async function requestPasswordReset(
       : (headersList.get("x-forwarded-proto") ?? "http");
   const origin = `${proto}://${host}`;
 
-  // PKCEを使わないクライアントで送る。理由は lib/supabase/email-auth.ts を参照。
-  // createServerClient（PKCE固定）で送ると、/auth/confirm の verifyOtp が
-  // 必ず失敗するトークンがメールに載る。
-  const supabase = createEmailAuthClient();
-  const { error } = await supabase.auth.resetPasswordForEmail(email, {
-    // 新パスワード設定画面のURLは `/update-password`。
-    // 実体は app/(auth)/update-password/page.tsx にあるが、`(auth)` は
-    // Next.js のルートグループなのでURLには現れない。
-    // ここを `/auth/update-password` にすると、token_hash の検証自体は成功するのに
-    // 直後のリダイレクト先が404になり、パスワードを再設定できない。
-    redirectTo: `${origin}/auth/confirm?next=/update-password`,
+  // Supabaseのメーラーではなく自前で送る（OEMごとの文面を使うため）。
+  //
+  // 遷移先の `/update-password` は app/(auth)/update-password/page.tsx の実体。
+  // `(auth)` は Next.js のルートグループなのでURLには現れない。ここを
+  // `/auth/update-password` にすると、token_hash の検証は成功するのに
+  // 直後のリダイレクト先が404になり、パスワードを再設定できない。
+  const { error } = await sendAuthEmail({
+    key: "recovery",
+    email,
+    // リセット依頼はログイン前で、どのOEMの利用者かを特定できない。
+    // 本部の設定・文面で送る。
+    whiteLabelId: null,
+    origin,
+    next: "/update-password",
   });
 
-  if (error && error.status !== 429) {
-    return { error: "メールの送信に失敗しました。", success: null };
+  if (error) {
+    // アドレスが存在しない場合もここに来る。**画面には出さない。**
+    // 「送信しました」と「アドレスがありません」を出し分けると、
+    // 登録済みアドレスの総当たり確認に使えてしまう。
+    // 運用のためサーバーログにだけ残す（アドレスは記録しない）。
+    console.warn(`[reset] パスワードリセットメールを送信できず: ${error}`);
   }
 
   return {

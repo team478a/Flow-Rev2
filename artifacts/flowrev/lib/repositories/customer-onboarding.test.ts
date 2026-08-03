@@ -20,15 +20,22 @@ const USER_ID = "invited-user-id";
 
 let fake: ReturnType<typeof createFakeSupabase>;
 
+// メール送信自体は send-auth-email.test.ts で検証する。
+// ここで見たいのは、送信結果を受けたあとのテナント紐付け。
+const sendAuthEmail = vi.fn(async (_input: unknown) => ({
+  authUserId: USER_ID as string | null,
+  error: null as string | null,
+}));
+
 vi.mock("@/lib/supabase/admin", () => ({
   createAdminClient: () => fake,
 }));
+vi.mock("@/lib/email/send-auth-email", () => ({
+  sendAuthEmail: (input: unknown) => sendAuthEmail(input),
+}));
 
 function setup(tables: Record<string, Row[]> = {}) {
-  fake = createFakeSupabase(
-    { user_profiles: [], customers: [], ...tables },
-    { invitedUserId: USER_ID },
-  );
+  fake = createFakeSupabase({ user_profiles: [], customers: [], ...tables });
 }
 
 async function invite() {
@@ -38,11 +45,15 @@ async function invite() {
     clientId: CLIENT_ID,
     whiteLabelId: WL_ID,
     displayName: "購入者",
-    redirectTo: "https://example.com/auth/confirm?next=/my",
+    origin: "https://example.com",
+    next: "/my",
   });
 }
 
-beforeEach(() => vi.resetModules());
+beforeEach(() => {
+  vi.resetModules();
+  sendAuthEmail.mockResolvedValue({ authUserId: USER_ID, error: null });
+});
 
 describe("招待時のテナント紐付け", () => {
   it("トリガーが作った client_id NULL の行にテナントを補う", async () => {
@@ -97,14 +108,31 @@ describe("招待時のテナント紐付け", () => {
 
     await invite();
 
-    const { inviteCalls } = fake as unknown as {
-      inviteCalls: Array<{ email: string; options?: { data?: Row } }>;
-    };
-    expect(inviteCalls[0]?.options?.data).toMatchObject({
-      role: "customer",
-      client_id: CLIENT_ID,
-      white_label_id: WL_ID,
-    });
+    expect(sendAuthEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        key: "invite",
+        userData: expect.objectContaining({
+          role: "customer",
+          client_id: CLIENT_ID,
+          white_label_id: WL_ID,
+        }),
+      }),
+    );
+  });
+
+  it("送信先OEMと着地先を渡す", async () => {
+    // OEMごとの文面・送信元を解決するのに white_label_id が要る。
+    setup();
+
+    await invite();
+
+    expect(sendAuthEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        whiteLabelId: WL_ID,
+        origin: "https://example.com",
+        next: "/my",
+      }),
+    );
   });
 
   it("customers 行を認証ユーザーに紐付ける", async () => {
@@ -141,10 +169,11 @@ describe("招待時のテナント紐付け", () => {
 
 describe("招待が失敗した場合", () => {
   it("authUserId は null になり、エラーを返す", async () => {
-    fake = createFakeSupabase(
-      { user_profiles: [], customers: [] },
-      { invitedUserId: null, inviteError: "email rate limit exceeded" },
-    );
+    setup();
+    sendAuthEmail.mockResolvedValue({
+      authUserId: null,
+      error: "email rate limit exceeded",
+    });
 
     const result = await invite();
 
@@ -153,17 +182,33 @@ describe("招待が失敗した場合", () => {
   });
 
   it("プロフィールや customers を書き換えない", async () => {
-    fake = createFakeSupabase(
-      {
-        user_profiles: [{ id: USER_ID, role: "customer", client_id: null }],
-        customers: [{ email: "buyer@example.com", client_id: CLIENT_ID, user_id: null }],
-      },
-      { invitedUserId: null, inviteError: "invite failed" },
-    );
+    setup({
+      user_profiles: [{ id: USER_ID, role: "customer", client_id: null }],
+      customers: [
+        { email: "buyer@example.com", client_id: CLIENT_ID, user_id: null },
+      ],
+    });
+    sendAuthEmail.mockResolvedValue({ authUserId: null, error: "invite failed" });
 
     await invite();
 
     expect(fake.tables.user_profiles[0]?.client_id).toBeNull();
     expect(fake.tables.customers[0]?.user_id).toBeNull();
+  });
+
+  it("メールは送れなくてもユーザーが作られていればテナントを紐付ける", async () => {
+    // 認証ユーザーは作られたがResendの送信で落ちた場合、ここで諦めると
+    // 「アカウントはあるがテナント未設定」という復旧の必要な状態が残る。
+    // 招待の再送で回復できるよう、紐付けだけは済ませておく。
+    setup();
+    sendAuthEmail.mockResolvedValue({
+      authUserId: USER_ID,
+      error: "メール送信に失敗しました: domain not verified",
+    });
+
+    await invite();
+
+    const profile = fake.tables.user_profiles.find((r) => r.id === USER_ID);
+    expect(profile?.client_id).toBe(CLIENT_ID);
   });
 });

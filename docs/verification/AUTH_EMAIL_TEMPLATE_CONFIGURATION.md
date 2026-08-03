@@ -23,6 +23,33 @@
 
 ---
 
+## 1-A. 【重要】認証メールは自前送信に切り替えた
+
+**Supabaseのメールテンプレートは使われなくなった。** 文面の変更は FlowRev の管理画面で行う。
+
+| 画面 | 対象 |
+|---|---|
+| `/admin/settings/auth-emails` | 本部の共通テンプレート。独自設定していない全OEMに適用 |
+| `/wl/settings/auth-emails` | OEM専用のテンプレート |
+
+### 経緯
+
+Supabaseのテンプレートは**プロジェクト単位**で、OEMごとに文面やブランドを変えられない。ホワイトラベル製品として成立しないため、リンクの生成だけSupabaseに任せ、本文の組み立てと送信を自前（Resend）に移した。
+
+`admin.auth.admin.generateLink()` はメールを送らず `hashed_token` だけを返す。そこから `/auth/confirm` へ向けたURLを自分で組み立てる。管理（service_role）クライアント経由なので**PKCEを通らず**、`verifyOtp` で検証できる通常のトークンになる（§4-0 の問題が構造的に起きない）。
+
+解決順は他の設定と同じ **OEM → 本部 → コード内の既定**。`auth_email_templates` が空でも既定テンプレートで送信されるため、認証メールが届かなくなることはない。
+
+### 影響
+
+- Supabaseダッシュボードのテンプレート編集は、**招待・パスワードリセットには効かなくなった**
+- 送信には「メール設定（Resend）」が使われる。**未登録だと認証メールが一通も届かない**
+- パスワードリセットはログイン前でOEMを特定できないため、本部の設定・文面で送る
+
+以下 §2〜§5 は、切り替え前に判明した問題の記録として残す。`/auth/confirm` と `token_hash` の仕組み自体は現在も同じ。
+
+---
+
 ## 2. なぜ `token_hash` 方式が必要か
 
 Supabase の既定のメールリンク（`{{ .ConfirmationURL }}`）は、トークンを **URLフラグメント** (`#access_token=...`) で返す。
@@ -154,6 +181,28 @@ return createSupabaseClient(normalizeSupabaseUrl(url), anonKey, {
 セッションを発行しない送信専用の用途なので、Cookieの読み書きも不要になる。
 
 **注意**: `/auth/callback`（`?code=` を `exchangeCodeForSession` で交換する）はPKCE用として残してある。今回の変更はパスワードリセットの送信経路のみに閉じている。
+
+### 4-0-B. テンプレートの `type` が `invite` のままだった
+
+PKCE修正の適用後もリンクが失敗し続けたため、Vercelのログで確定させた。
+
+```
+[auth/confirm] verifyOtp 失敗 (type=invite, status=403, code=otp_expired):
+Email link is invalid or has expired
+```
+
+リクエストのクエリは `next=/update-password&token_hash=...&type=invite`。`next` がリセット用なのに `type` が `invite` になっており、**招待用テンプレートを複製した際に `type` を変え忘れていた**。recovery のトークンを `type=invite` として検証するため必ず失敗する。
+
+ログには `token_hash` の変化も残っており、PKCE修正の効果が確認できた。
+
+| 時刻 | token_hash | 状態 |
+|---|---|---|
+| 05:30・05:35 | `pkce_...` | 修正前 |
+| 05:50 | `pkce_` なし | 修正後 |
+
+**この種の間違いは、自前送信への切り替え（§1-A）で構造的に起きなくなった。** `type` はコード側が `key` から決めるため、テンプレート編集で壊せない。
+
+> Vercelのリクエストログにはクエリ文字列がそのまま記録されるため `token_hash` が残る。アプリのコードは出力していないが、ログのエクスポートは秘密情報として扱うこと。
 
 ### 4-1. リンク先が存在しないURLを指していた
 

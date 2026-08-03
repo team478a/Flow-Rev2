@@ -1,13 +1,16 @@
 import "server-only";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { sendAuthEmail } from "@/lib/email/send-auth-email";
 
 export interface InviteCustomerInput {
   email: string;
   clientId: string;
   whiteLabelId: string | null;
   displayName?: string | null;
-  /** 招待メールのリンク先（`/auth/confirm?next=...`）。メールテンプレートがここに token_hash を付与する。 */
-  redirectTo: string;
+  /** リンクの絶対URLを組み立てる起点。例: `https://app.example.com` */
+  origin: string;
+  /** 認証後の着地先。会員ページなら `/my` */
+  next: string;
 }
 
 export interface InviteCustomerResult {
@@ -32,9 +35,16 @@ export async function inviteCustomerWithTenant(
 ): Promise<InviteCustomerResult> {
   const admin = createAdminClient();
 
-  const { data, error } = await admin.auth.admin.inviteUserByEmail(input.email, {
-    redirectTo: input.redirectTo,
-    data: {
+  // Supabase のメーラーではなく自前で送る（OEMごとの文面を使うため）。
+  // inviteUserByEmail と同じくユーザーを作成し、メタデータをトリガーへ渡す。
+  const { authUserId, error } = await sendAuthEmail({
+    key: "invite",
+    email: input.email,
+    whiteLabelId: input.whiteLabelId,
+    origin: input.origin,
+    next: input.next,
+    displayName: input.displayName ?? null,
+    userData: {
       role: "customer",
       client_id: input.clientId,
       white_label_id: input.whiteLabelId,
@@ -42,9 +52,8 @@ export async function inviteCustomerWithTenant(
     },
   });
 
-  const authUserId = data?.user?.id ?? null;
   if (!authUserId) {
-    return { authUserId: null, error: error?.message ?? "招待に失敗しました。" };
+    return { authUserId: null, error: error ?? "招待に失敗しました。" };
   }
 
   // トリガーが無い環境や、トリガーより先にこの経路が走った場合に備えて行を作る。
