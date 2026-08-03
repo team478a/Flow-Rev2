@@ -31,6 +31,20 @@ vi.mock("next/navigation", () => ({
 vi.mock("@/lib/supabase/server", () => ({
   createClient: () => ({ auth: { resetPasswordForEmail } }),
 }));
+
+// email-auth.ts 本体を通し、supabase-js に渡るオプションを観測する。
+// ここをスタブで置き換えると flowType の検証ができなくなる。
+const supabaseCreateClient = vi.fn((_url: string, _key: string, opts: unknown) => {
+  createdOptions.push(opts);
+  return { auth: { resetPasswordForEmail } };
+});
+let createdOptions: unknown[] = [];
+
+vi.mock("@supabase/supabase-js", () => ({
+  createClient: (url: string, key: string, opts: unknown) =>
+    supabaseCreateClient(url, key, opts),
+}));
+vi.mock("server-only", () => ({}));
 vi.mock("@/lib/rate-limit", () => ({
   checkRateLimit: async () => ({ allowed: true }),
   getClientIp: () => "127.0.0.1",
@@ -77,7 +91,33 @@ async function sendReset() {
 beforeEach(() => {
   vi.clearAllMocks();
   vi.resetModules();
+  createdOptions = [];
+  process.env.NEXT_PUBLIC_SUPABASE_URL = "https://test.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = "anon-key";
   resetPasswordForEmail.mockResolvedValue({ error: null });
+});
+
+describe("パスワードリセットメールの送信クライアント", () => {
+  it("PKCEを使わないクライアントで送る", async () => {
+    // @supabase/ssr の createServerClient は flowType を "pkce" に固定する。
+    // PKCEで送るとSupabaseはPKCEに紐付いたトークンを発行するが、
+    // verifyOtp は code_verifier を送らないため /auth/confirm で必ず失敗する。
+    // 招待メール（service_role経由でPKCEを通らない）だけが動き、
+    // パスワードリセットだけが壊れる、という形で表に出る。
+    await sendReset();
+
+    const auth = (createdOptions[0] as { auth?: { flowType?: string } })?.auth;
+    expect(auth?.flowType).toBe("implicit");
+  });
+
+  it("セッションを永続化しない", async () => {
+    // メールを送るだけでセッションは発行しない。Cookieを書く必要がない。
+    await sendReset();
+
+    const auth = (createdOptions[0] as { auth?: { persistSession?: boolean } })
+      ?.auth;
+    expect(auth?.persistSession).toBe(false);
+  });
 });
 
 describe("パスワードリセットメールのリンク先", () => {
