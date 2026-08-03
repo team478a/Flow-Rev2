@@ -4,6 +4,7 @@ import { z } from "zod";
 import { enqueuePurchaseScenarios } from "@/lib/repositories/scenario-execution";
 import { getStripeClient } from "@/lib/stripe/client";
 import { createPurchase } from "@/lib/repositories/purchases";
+import { inviteCustomerWithTenant } from "@/lib/repositories/customer-onboarding";
 import Stripe from "stripe";
 
 const bodySchema = z.object({
@@ -215,32 +216,17 @@ export async function POST(req: NextRequest) {
     const origin = `${proto}://${host}`;
     const redirectTo = `${origin}/auth/callback?next=/my`;
 
-    const { data: inviteData, error: inviteError } =
-      await admin.auth.admin.inviteUserByEmail(email, {
-        redirectTo,
-        data: { role: "customer" },
-      });
+    const { authUserId, error: inviteError } = await inviteCustomerWithTenant({
+      email,
+      clientId,
+      whiteLabelId,
+      displayName: name ?? null,
+      redirectTo,
+    });
 
-    const authUserId = inviteData?.user?.id;
-    if (authUserId) {
-      await admin.from("user_profiles").upsert(
-        {
-          id: authUserId,
-          role: "customer",
-          display_name: name ?? null,
-          client_id: clientId,
-          white_label_id: whiteLabelId,
-        },
-        { onConflict: "id", ignoreDuplicates: true },
-      );
-      await admin
-        .from("customers")
-        .update({ user_id: authUserId, updated_at: new Date().toISOString() })
-        .eq("email", email)
-        .eq("client_id", clientId);
-    } else if (inviteError) {
+    if (!authUserId && inviteError) {
       console.warn(
-        `[LP register] invite skipped for lp ${lpId} (client ${clientId}): ${inviteError.message}`,
+        `[LP register] invite skipped for lp ${lpId} (client ${clientId}): ${inviteError}`,
       );
     }
   } catch {
