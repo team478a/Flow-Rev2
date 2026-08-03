@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
           "localhost:3000";
         const proto = req.headers.get("x-forwarded-proto") ?? "http";
         const origin = `${proto}://${host}`;
-        const redirectTo = `${origin}/auth/callback?next=/my`;
+        const redirectTo = `${origin}/auth/confirm?next=/my`;
 
         const { authUserId, error: inviteError } = await inviteCustomerWithTenant({
           email: customerEmail,

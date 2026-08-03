@@ -38,7 +38,7 @@ async function invite() {
     clientId: CLIENT_ID,
     whiteLabelId: WL_ID,
     displayName: "購入者",
-    redirectTo: "https://example.com/auth/callback?next=/my",
+    redirectTo: "https://example.com/auth/confirm?next=/my",
   });
 }
 
