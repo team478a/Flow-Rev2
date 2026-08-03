@@ -39,8 +39,15 @@ export async function GET(request: NextRequest) {
   });
 
   if (error) {
-    // 期限切れ・使用済みリンクはここに来る。
-    // 理由をURLに載せるのはログイン画面での案内表示のためで、詳細は含めない。
+    // 期限切れ・使用済み・type不一致・トークン不正が、すべてここに集まる。
+    // URLに載せる理由は利用者向けの案内文のためで、内訳は含めない
+    // （どのトークンが「存在するが期限切れ」なのかを外部に教えないため）。
+    //
+    // 一方、内訳が分からないと運用側で切り分けができないので、サーバーログには残す。
+    // token_hash そのものは記録しない（有効なら認証情報として使えてしまう）。
+    console.warn(
+      `[auth/confirm] verifyOtp 失敗 (type=${type}, status=${error.status ?? "-"}, code=${error.code ?? "-"}): ${error.message}`,
+    );
     return NextResponse.redirect(`${origin}/login?error=link_expired`);
   }
 
