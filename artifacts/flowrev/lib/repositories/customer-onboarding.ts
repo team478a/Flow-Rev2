@@ -6,7 +6,7 @@ export interface InviteCustomerInput {
   clientId: string;
   whiteLabelId: string | null;
   displayName?: string | null;
-  /** 招待メールのリンク先（`/auth/callback?next=...`） */
+  /** 招待メールのリンク先（`/auth/confirm?next=...`）。メールテンプレートがここに token_hash を付与する。 */
   redirectTo: string;
 }
 
