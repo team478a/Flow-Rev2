@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getStripeSettingsResolved } from "@/lib/repositories/stripe-settings";
 import { markPurchasePaid } from "@/lib/repositories/purchases";
 import { enqueuePurchaseScenarios } from "@/lib/repositories/scenario-execution";
+import { inviteCustomerWithTenant } from "@/lib/repositories/customer-onboarding";
 import Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
@@ -105,32 +106,17 @@ export async function POST(req: NextRequest) {
         const origin = `${proto}://${host}`;
         const redirectTo = `${origin}/auth/callback?next=/my`;
 
-        const { data: inviteData, error: inviteError } =
-          await admin.auth.admin.inviteUserByEmail(customerEmail, {
-            redirectTo,
-            data: { role: "customer" },
-          });
+        const { authUserId, error: inviteError } = await inviteCustomerWithTenant({
+          email: customerEmail,
+          clientId,
+          whiteLabelId,
+          displayName: customerName ?? null,
+          redirectTo,
+        });
 
-        const authUserId = inviteData?.user?.id;
-        if (authUserId) {
-          await admin.from("user_profiles").upsert(
-            {
-              id: authUserId,
-              role: "customer",
-              display_name: customerName ?? null,
-              client_id: clientId,
-              white_label_id: whiteLabelId,
-            },
-            { onConflict: "id", ignoreDuplicates: true },
-          );
-          await admin
-            .from("customers")
-            .update({ user_id: authUserId, updated_at: new Date().toISOString() })
-            .eq("email", customerEmail)
-            .eq("client_id", clientId);
-        } else if (inviteError) {
+        if (!authUserId && inviteError) {
           console.warn(
-            `[Stripe Webhook] invite skipped for session ${stripeSessionId} (client ${clientId}): ${inviteError.message}`,
+            `[Stripe Webhook] invite skipped for session ${stripeSessionId} (client ${clientId}): ${inviteError}`,
           );
         }
       } catch {
