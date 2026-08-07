@@ -196,6 +196,20 @@ describe("招待が失敗した場合", () => {
     expect(fake.tables.customers[0]?.user_id).toBeNull();
   });
 
+  it("送信エラーを呼び出し側へ返す", async () => {
+    // ここで error を捨てると、決済は成立したのに招待メールだけ届かず、
+    // 呼び出し側のログにも何も出ない状態になる。
+    setup();
+    sendAuthEmail.mockResolvedValue({
+      authUserId: USER_ID,
+      error: "メール送信に失敗しました: domain not verified",
+    });
+
+    const result = await invite();
+
+    expect(result.error).toContain("domain not verified");
+  });
+
   it("メールは送れなくてもユーザーが作られていればテナントを紐付ける", async () => {
     // 認証ユーザーは作られたがResendの送信で落ちた場合、ここで諦めると
     // 「アカウントはあるがテナント未設定」という復旧の必要な状態が残る。

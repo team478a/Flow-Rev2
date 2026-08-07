@@ -7,6 +7,16 @@
  */
 
 export const AUTH_TEMPLATE_KEYS = ["invite", "recovery"] as const;
+
+/**
+ * OEMが編集できる種別。
+ *
+ * `recovery` は含めない。パスワードリセットはログイン前の操作で、
+ * どのOEMの利用者かを特定できないため本部の文面で送っている
+ * （`requestPasswordReset` は whiteLabelId: null 固定）。
+ * OEM画面に置くと、保存はできるのに一切反映されない欄になる。
+ */
+export const WL_EDITABLE_TEMPLATE_KEYS = ["invite"] as const;
 export type AuthTemplateKey = (typeof AUTH_TEMPLATE_KEYS)[number];
 
 export interface AuthEmailTemplate {
@@ -52,7 +62,9 @@ function escapeHtml(s: string): string {
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replace(/"/g, "&quot;")
+    // 属性をシングルクォートで囲んだテンプレートもありうるため両方エスケープする
+    .replace(/'/g, "&#39;");
 }
 
 /**
@@ -92,17 +104,14 @@ export function renderAuthSubject(
  */
 export function buildAuthTextBody(vars: AuthTemplateVars): string {
   return [
-    vars.name ? `${vars.name} 様` : "",
-    "",
+    ...(vars.name ? [`${vars.name} 様`, ""] : []),
     `${vars.brand} からのご案内です。`,
     "下記のURLを開いて手続きを完了してください。",
     "",
     vars.link,
     "",
     "※このメールに心当たりがない場合は破棄してください。",
-  ]
-    .filter((line, i) => !(i === 0 && line === ""))
-    .join("\n");
+  ].join("\n");
 }
 
 function layout(inner: string): string {

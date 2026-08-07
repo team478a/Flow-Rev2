@@ -146,24 +146,3 @@ export async function saveAuthEmailTemplate(
   });
   if (error) throwSafe("テンプレートの保存に失敗しました", error);
 }
-
-/**
- * 自分の階層の保存を削除し、上位階層の継承へ戻す。
- */
-export async function resetAuthEmailTemplate(
-  whiteLabelId: string | null,
-  key: AuthTemplateKey,
-): Promise<void> {
-  const admin = createAdminClient();
-
-  const base = admin
-    .from("auth_email_templates")
-    .delete()
-    .eq("template_key", key);
-
-  const { error } = whiteLabelId
-    ? await base.eq("white_label_id", whiteLabelId)
-    : await base.is("white_label_id", null);
-
-  if (error) throwSafe("テンプレートの削除に失敗しました", error);
-}

@@ -54,7 +54,12 @@ export default async function MyPage({ searchParams }: Props) {
   const stripeEnabled = !!(stripeSettings?.hasSecretKey);
   const isPaid =
     stripeEnabled && customerId
-      ? await hasPaidPurchase(customerId, session.clientId).catch(() => false)
+      ? await hasPaidPurchase(customerId, session.clientId).catch(
+          // 失敗時は false（購入なし扱い）のまま。支払い済みの顧客を通すより
+          // 締める方が安全だが、無言だと「支払ったのに見られない」問い合わせの
+          // 原因が追えないので記録する。
+          softFail("購入状態の判定", false),
+        )
       : true; // Stripe 未設定なら無料アクセス
 
   const paymentSuccess = searchParams.payment === "success";

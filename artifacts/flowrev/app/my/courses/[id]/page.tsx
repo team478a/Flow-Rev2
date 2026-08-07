@@ -146,7 +146,7 @@ async function resolveAuthorizedCfToken(
     const purchased = await hasPurchasedProduct(
       customerId,
       courseProductId,
-    ).catch(() => false);
+    ).catch(softFail("購入状態の判定", false));
     if (!purchased) return null;
   }
 
@@ -181,7 +181,7 @@ export default async function MyCoursePage({ params, searchParams }: Props) {
 
   if (course.productId) {
     const purchased = customerId
-      ? await hasPurchasedProduct(customerId, course.productId).catch(() => false)
+      ? await hasPurchasedProduct(customerId, course.productId).catch(softFail("購入状態の判定", false))
       : false;
 
     if (!purchased) {

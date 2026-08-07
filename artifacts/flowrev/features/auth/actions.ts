@@ -1,9 +1,9 @@
 "use server";
 
-import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { sendAuthEmail } from "@/lib/email/send-auth-email";
+import { getAuthLinkOrigin } from "@/lib/app-origin";
 import { checkRateLimit, getClientIp, hashForRateLimitKey } from "@/lib/rate-limit";
 import { roleHomePath } from "./role";
 import { getSessionProfile } from "./session";
@@ -103,29 +103,27 @@ export async function requestPasswordReset(
     };
   }
 
-  const headersList = headers();
-  const host = headersList.get("host") ?? "localhost:3000";
-  const proto =
-    process.env.NODE_ENV === "production"
-      ? "https"
-      : (headersList.get("x-forwarded-proto") ?? "http");
-  const origin = `${proto}://${host}`;
-
   // Supabaseのメーラーではなく自前で送る（OEMごとの文面を使うため）。
   //
   // 遷移先の `/update-password` は app/(auth)/update-password/page.tsx の実体。
   // `(auth)` は Next.js のルートグループなのでURLには現れない。ここを
   // `/auth/update-password` にすると、token_hash の検証は成功するのに
   // 直後のリダイレクト先が404になり、パスワードを再設定できない。
+  // sendAuthEmail は設定取得などで例外を投げうる。ここで拾わないと
+  // 「常に同じ応答を返す」という前提が崩れ、エラー画面の有無で
+  // アドレスの存在を推測されうる。
   const { error } = await sendAuthEmail({
     key: "recovery",
     email,
     // リセット依頼はログイン前で、どのOEMの利用者かを特定できない。
     // 本部の設定・文面で送る。
     whiteLabelId: null,
-    origin,
+    // 認証リンクのオリジンはリクエストヘッダから作らない（lib/app-origin.ts 参照）。
+    origin: getAuthLinkOrigin(),
     next: "/update-password",
-  });
+  }).catch((e: unknown) => ({
+    error: e instanceof Error ? e.message : "送信処理でエラーが発生しました。",
+  }));
 
   if (error) {
     // アドレスが存在しない場合もここに来る。**画面には出さない。**
