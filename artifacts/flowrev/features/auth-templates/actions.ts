@@ -6,6 +6,7 @@ import { requireWhiteLabelOwner } from "@/features/wl/guard";
 import { saveAuthEmailTemplate } from "@/lib/repositories/auth-email-templates";
 import {
   AUTH_TEMPLATE_KEYS,
+  WL_EDITABLE_TEMPLATE_KEYS,
   type AuthTemplateKey,
 } from "@/lib/email/auth-templates";
 import type { SaveAuthTemplateState } from "@/features/admin/components/auth-template-form";
@@ -85,6 +86,16 @@ export async function saveWlAuthTemplateAction(
 
   const parsed = parse(formData);
   if (!parsed.ok) return { error: parsed.error, success: false };
+
+  // 画面には招待メールしか出していないが、種別はフォーム値なので改めて検証する。
+  // `recovery` を保存できてしまうと、送信では一切使われない行が残り、
+  // 「編集したのに反映されない」という追いにくい状態になる。
+  if (!WL_EDITABLE_TEMPLATE_KEYS.includes(parsed.key as "invite")) {
+    return {
+      error: "この種別はOEM側で変更できません。",
+      success: false,
+    };
+  }
 
   try {
     await saveAuthEmailTemplate(session.whiteLabelId, {

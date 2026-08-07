@@ -5,6 +5,7 @@ import { enqueuePurchaseScenarios } from "@/lib/repositories/scenario-execution"
 import { getStripeClient } from "@/lib/stripe/client";
 import { createPurchase } from "@/lib/repositories/purchases";
 import { inviteCustomerWithTenant } from "@/lib/repositories/customer-onboarding";
+import { getAuthLinkOrigin } from "@/lib/app-origin";
 import Stripe from "stripe";
 
 const bodySchema = z.object({
@@ -208,18 +209,13 @@ export async function POST(req: NextRequest) {
 
   // ---- 無料フロー（商品が無い、または価格が0以下の場合のみ）----
   try {
-    const host =
-      req.headers.get("x-forwarded-host") ??
-      req.headers.get("host") ??
-      "localhost:3000";
-    const proto = req.headers.get("x-forwarded-proto") ?? "http";
-    const origin = `${proto}://${host}`;
+    // 認証リンクのオリジンはリクエストヘッダから作らない（lib/app-origin.ts 参照）。
     const { authUserId, error: inviteError } = await inviteCustomerWithTenant({
       email,
       clientId,
       whiteLabelId,
       displayName: name ?? null,
-      origin,
+      origin: getAuthLinkOrigin(),
       next: "/my",
     });
 

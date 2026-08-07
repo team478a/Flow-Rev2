@@ -4,6 +4,7 @@ import { getStripeSettingsResolved } from "@/lib/repositories/stripe-settings";
 import { markPurchasePaid } from "@/lib/repositories/purchases";
 import { enqueuePurchaseScenarios } from "@/lib/repositories/scenario-execution";
 import { inviteCustomerWithTenant } from "@/lib/repositories/customer-onboarding";
+import { getAuthLinkOrigin } from "@/lib/app-origin";
 import Stripe from "stripe";
 
 export const dynamic = "force-dynamic";
@@ -98,18 +99,14 @@ export async function POST(req: NextRequest) {
     // 顧客への招待メール送信（決済完了後にマイページへのアクセスを付与）
     if (customerEmail) {
       try {
-        const host =
-          req.headers.get("x-forwarded-host") ??
-          req.headers.get("host") ??
-          "localhost:3000";
-        const proto = req.headers.get("x-forwarded-proto") ?? "http";
-        const origin = `${proto}://${host}`;
         const { authUserId, error: inviteError } = await inviteCustomerWithTenant({
           email: customerEmail,
           clientId,
           whiteLabelId,
           displayName: customerName ?? null,
-          origin,
+          // 認証リンクのオリジンはリクエストヘッダから作らない（lib/app-origin.ts 参照）。
+          // Webhook の送信元は Stripe なので、そもそもヘッダに意味が無い。
+          origin: getAuthLinkOrigin(),
           next: "/my",
         });
 

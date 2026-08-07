@@ -3,7 +3,7 @@ import { AuthTemplateForm } from "@/features/admin/components/auth-template-form
 import { saveWlAuthTemplateAction } from "@/features/auth-templates/actions";
 import { getAuthEmailTemplateForEdit } from "@/lib/repositories/auth-email-templates";
 import {
-  AUTH_TEMPLATE_KEYS,
+  WL_EDITABLE_TEMPLATE_KEYS,
   AUTH_TEMPLATE_LABELS,
   AUTH_TEMPLATE_DESCRIPTIONS,
 } from "@/lib/email/auth-templates";
@@ -25,7 +25,7 @@ export default async function WlAuthEmailsPage() {
   }
 
   const templates = await Promise.all(
-    AUTH_TEMPLATE_KEYS.map(async (key) => ({
+    WL_EDITABLE_TEMPLATE_KEYS.map(async (key) => ({
       key,
       current: await getAuthEmailTemplateForEdit(session.whiteLabelId!, key),
     })),
@@ -75,7 +75,7 @@ export default async function WlAuthEmailsPage() {
             を含めてください。認証リンクが無いと、受け取った方が手続きを完了できません。
           </li>
           <li>
-            パスワードリセットはログイン前の操作でOEMを特定できないため、本部の文面で送られます。ここでの設定は招待メールにのみ反映されます。
+            パスワードリセットはログイン前の操作でOEMを特定できないため、本部の文面で送られます。この画面では変更できません。
           </li>
         </ul>
       </section>

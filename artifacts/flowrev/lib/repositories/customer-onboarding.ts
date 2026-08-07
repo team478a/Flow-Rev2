@@ -89,5 +89,8 @@ export async function inviteCustomerWithTenant(
     .eq("email", input.email)
     .eq("client_id", input.clientId);
 
-  return { authUserId, error: null };
+  // 送信に失敗していても、ここまでのテナント紐付けは完了させたうえで
+  // 理由を返す。呼び出し側が握りつぶすと「決済は成立したのに招待メールだけ
+  // 届かず、ログにも何も残らない」状態になるため、error は捨てない。
+  return { authUserId, error };
 }

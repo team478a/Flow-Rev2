@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import Link from "next/link";
 import { ChevronLeft, FileDown, CheckCircle2, Lock, Clock, AlertCircle, ShoppingCart } from "lucide-react";
 import { getSessionProfile } from "@/features/auth/session";
+import { softFail } from "@/lib/observability/soft-fail";
 import {
   getPublishedCourse,
   listPublishedLessons,
@@ -145,7 +146,7 @@ async function resolveAuthorizedCfToken(
     const purchased = await hasPurchasedProduct(
       customerId,
       courseProductId,
-    ).catch(() => false);
+    ).catch(softFail("購入状態の判定", false));
     if (!purchased) return null;
   }
 
@@ -171,8 +172,8 @@ export default async function MyCoursePage({ params, searchParams }: Props) {
   if (!session.clientId) redirect("/my");
 
   const [course, lessons, customerId] = await Promise.all([
-    getPublishedCourse(params.id, session.clientId).catch(() => null),
-    listPublishedLessons(params.id, session.clientId).catch(() => []),
+    getPublishedCourse(params.id, session.clientId).catch(softFail("コース詳細", null)),
+    listPublishedLessons(params.id, session.clientId).catch(softFail("レッスン一覧", [])),
     getCustomerIdByUserId(session.userId),
   ]);
 
@@ -180,7 +181,7 @@ export default async function MyCoursePage({ params, searchParams }: Props) {
 
   if (course.productId) {
     const purchased = customerId
-      ? await hasPurchasedProduct(customerId, course.productId).catch(() => false)
+      ? await hasPurchasedProduct(customerId, course.productId).catch(softFail("購入状態の判定", false))
       : false;
 
     if (!purchased) {
@@ -223,7 +224,7 @@ export default async function MyCoursePage({ params, searchParams }: Props) {
   }
 
   const progressList = customerId
-    ? await getCourseProgress(customerId, params.id).catch(() => [])
+    ? await getCourseProgress(customerId, params.id).catch(softFail("受講進捗", []))
     : [];
 
   const completedIds = new Set(

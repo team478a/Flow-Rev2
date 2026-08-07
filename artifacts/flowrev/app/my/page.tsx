@@ -2,6 +2,7 @@ import Link from "next/link";
 import { BookOpen, CheckCircle2 } from "lucide-react";
 import { getSessionProfile } from "@/features/auth/session";
 import { redirect } from "next/navigation";
+import { softFail } from "@/lib/observability/soft-fail";
 import { listPublishedCourses } from "@/lib/repositories/courses-public";
 import {
   getCustomerIdByUserId,
@@ -29,10 +30,19 @@ export default async function MyPage({ searchParams }: Props) {
   }
 
   const [courses, customerId, stripeSettings] = await Promise.all([
-    listPublishedCourses(session.clientId).catch(() => []),
+    listPublishedCourses(session.clientId).catch(softFail("コース一覧", [])),
     getCustomerIdByUserId(session.userId),
-    getStripeSettingsMasked(session.clientId).catch(() => null),
+    getStripeSettingsMasked(session.clientId).catch(softFail("Stripe設定", null)),
   ]);
+
+  if (courses.length === 0) {
+    // 「コースが未作成」と「アプリが見ているテナント／DBが想定と違う」は
+    // 画面上まったく同じに見える。突き合わせに必要なIDだけ残す
+    // （どちらもUUIDで、個人情報は含まない）。
+    console.warn(
+      `[my] 公開コース0件 (client=${session.clientId}, wl=${session.whiteLabelId})`,
+    );
+  }
 
   const completedCounts = customerId
     ? await getCompletedCountsByCourse(customerId).catch(
@@ -44,7 +54,12 @@ export default async function MyPage({ searchParams }: Props) {
   const stripeEnabled = !!(stripeSettings?.hasSecretKey);
   const isPaid =
     stripeEnabled && customerId
-      ? await hasPaidPurchase(customerId, session.clientId).catch(() => false)
+      ? await hasPaidPurchase(customerId, session.clientId).catch(
+          // 失敗時は false（購入なし扱い）のまま。支払い済みの顧客を通すより
+          // 締める方が安全だが、無言だと「支払ったのに見られない」問い合わせの
+          // 原因が追えないので記録する。
+          softFail("購入状態の判定", false),
+        )
       : true; // Stripe 未設定なら無料アクセス
 
   const paymentSuccess = searchParams.payment === "success";

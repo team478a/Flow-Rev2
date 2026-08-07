@@ -23,13 +23,13 @@ Phase 3a への可否判断は `PHASE3A_READINESS_DECISION.md` を参照。
 
 | # | 受入項目 | 結果 | 詳細 |
 |---|---|---|---|
-| 1 | Supabaseメールテンプレート変更（Invite） | ✅ | `AUTH_EMAIL_TEMPLATE_CONFIGURATION.md` §1 |
-| 2 | 同（Magic Link） | ⚠️ | 変更済みだが変更後の再テスト記録なし |
-| 3 | 同（Reset Password / Confirm signup） | ⚠️ | 未確認 |
+| 1 | 認証メールのテンプレート管理 | ✅ 🔧 | **管理画面へ移設**（PR #25）。Supabase側のテンプレートは不使用に |
+| 2 | 同（Magic Link） | ⚠️ | アプリからは送っていない。ダッシュボード送信のみ |
+| 3 | 同（Confirm signup） | — | 自己サインアップが無いため未使用 |
 | 4 | Site URL / Redirect URLs | ✅ prod / ⚠️ dev | prodは `localhost:3000` から本番URLへ修正済み |
 | 5 | 招待メールからの認証 | ✅ | `/auth/confirm` で `token_hash` を検証し `/my` へ着地 |
 | 6 | Magic Link 認証 | ⚠️ | 修正前の失敗は確認済み。修正後は未テスト |
-| 7 | パスワードリセット | 🔧 ⚠️ | **リンク先が404になる不具合を発見・修正**（§3）。実テストは未実施 |
+| 7 | パスワードリセット | ✅ 🔧 | **原因3件を修正し、一気通貫で成功**（PR #23・#24・#25） |
 | 8 | Stripeテスト購入 | ✅ | OEM階層の設定で Checkout → 決済成立 |
 | 9 | Webhook受信・署名検証 | ✅ | Stripe配信ログで 200 |
 | 10 | `purchases.payment_status = paid` | ✅ | `paid_at` も設定 |
@@ -41,6 +41,7 @@ Phase 3a への可否判断は `PHASE3A_READINESS_DECISION.md` を参照。
 | 16 | 未設定OEMのFlowRev既定表示 | 🧪 | フォールバック実装を確認。目視未確認 |
 | 17 | Migration 0019 | ✅ | 5列とも prod・dev に存在 |
 | 18 | Migration 0020 | ⚠️ | **未適用**。コードは当該列を参照しないため影響なし |
+| 18-B | Migration 0021（認証メールテンプレート） | ✅ | prod適用済み。テーブル/インデックス2/ポリシー2を確認 |
 | 19 | 顧客データ不整合の件数確認 | ✅ | 1件検出 → 1件補正 → 残0件 |
 | 20 | OEM API設定画面の回帰 | 🧪 | 越境防止を自動テスト11件で検証。目視未確認 |
 | 21 | Cloudflare未設定時の安全な失敗 | 🧪 | — |
