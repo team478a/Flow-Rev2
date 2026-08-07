@@ -7,6 +7,8 @@ import {
   createLandingPage,
   updateLandingPage,
   deleteLandingPage,
+  getLandingPage,
+  listLandingPages,
 } from "@/lib/repositories/landing-pages";
 import { lpSchema } from "@/features/lp/schema";
 import { sanitizeLpHtml } from "@/lib/sanitize";
@@ -154,4 +156,76 @@ export async function deleteLpAction(id: string): Promise<LpActionState> {
 
   revalidatePath("/lp");
   redirect("/lp");
+}
+
+/**
+ * LPを複製する。client_owner のみ実行可能。
+ *
+ * 媒体別・商品別に似たLPを何本も作る運用が前提なので、
+ * 毎回ゼロから作り直すのは現実的でない。
+ *
+ * 複製は必ず**下書き**で作る。公開状態のまま複製すると、
+ * 中身を直す前のページが `/p/<新しいslug>` で世に出てしまう。
+ *
+ * PV・登録数は引き継がない。複製先の成績として意味を持たないうえ、
+ * 引き継ぐとCVRが実態とずれる。
+ */
+export async function duplicateLpAction(
+  lpId: string,
+): Promise<{ error: string | null; newId?: string }> {
+  const session = await getSessionProfile();
+  if (session?.role !== "client_owner") {
+    return { error: "この操作を行う権限がありません。" };
+  }
+  if (!session.clientId || !session.whiteLabelId) {
+    return { error: "クライアント情報が取得できませんでした。" };
+  }
+
+  // RLS適用のクライアントで引くため、他テナントのIDでは取得できない。
+  const source = await getLandingPage(lpId);
+  if (!source) {
+    return { error: "複製元のLPが見つかりませんでした。" };
+  }
+
+  const slug = await findAvailableSlug(source.slug);
+
+  try {
+    const created = await createLandingPage({
+      title: `${source.title}（複製）`,
+      slug,
+      htmlContent: source.htmlContent ?? undefined,
+      productId: source.productId ?? undefined,
+      status: "draft",
+      clientId: session.clientId,
+      whiteLabelId: session.whiteLabelId,
+      designStyleName: source.designStyleName ?? undefined,
+      designColorPrimary: source.designColorPrimary ?? undefined,
+      designColorBg: source.designColorBg ?? undefined,
+      designColorAccent: source.designColorAccent ?? undefined,
+    });
+    revalidatePath("/lp");
+    return { error: null, newId: created.id };
+  } catch (e) {
+    return {
+      error: e instanceof Error ? e.message : "複製に失敗しました。",
+    };
+  }
+}
+
+/**
+ * 使われていないスラッグを探す。
+ *
+ * `UNIQUE(client_id, slug)` があるため、重複すると保存が失敗する。
+ * 「複製を押したらエラーが出た」で終わらせないよう、連番で空きを探す。
+ */
+async function findAvailableSlug(baseSlug: string): Promise<string> {
+  const existing = await listLandingPages().catch(() => []);
+  const taken = new Set(existing.map((lp) => lp.slug));
+
+  for (let i = 2; i <= 50; i += 1) {
+    const candidate = `${baseSlug}-${i}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+  // 50本まで埋まっている場合は時刻を混ぜる（衝突はまず起きない）。
+  return `${baseSlug}-${Date.now().toString(36)}`;
 }

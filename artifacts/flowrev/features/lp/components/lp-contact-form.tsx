@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useRef, useState, useTransition } from "react";
 import { CheckCircle2, Loader2, Send, ShoppingCart } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,6 +16,30 @@ export function LpContactForm({ lpId, isPaid = false }: LpContactFormProps) {
   const [done, setDone] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // 流入元はページを開いた時点で確定する。送信時に読むと、フォーム操作中に
+  // URLが書き換わった場合（SPA遷移・広告ツールのパラメータ除去）に失われる。
+  const attribution = useRef<Record<string, string>>({});
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const pick = (key: string) => params.get(key) ?? undefined;
+    const values: Record<string, string | undefined> = {
+      utmSource: pick("utm_source"),
+      utmMedium: pick("utm_medium"),
+      utmCampaign: pick("utm_campaign"),
+      utmTerm: pick("utm_term"),
+      utmContent: pick("utm_content"),
+      // 同一サイト内の遷移は流入元ではないため送らない。
+      referrer:
+        document.referrer && !document.referrer.startsWith(window.location.origin)
+          ? document.referrer
+          : undefined,
+    };
+    attribution.current = Object.fromEntries(
+      Object.entries(values).filter(([, v]) => Boolean(v)),
+    ) as Record<string, string>;
+  }, []);
+
   const [email, setEmail] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
@@ -29,7 +53,13 @@ export function LpContactForm({ lpId, isPaid = false }: LpContactFormProps) {
         const res = await fetch("/api/p/register", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ lpId, email, name: name || undefined, phone: phone || undefined }),
+          body: JSON.stringify({
+            lpId,
+            email,
+            name: name || undefined,
+            phone: phone || undefined,
+            attribution: attribution.current,
+          }),
         });
         const data = (await res.json()) as { ok?: boolean; error?: string; checkoutUrl?: string };
         if (!res.ok || !data.ok) {

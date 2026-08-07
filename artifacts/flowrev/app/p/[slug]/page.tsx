@@ -1,33 +1,7 @@
 import { notFound } from "next/navigation";
-import {
-  getPublishedLandingPageBySlug,
-  type PublicLandingPage,
-} from "@/lib/repositories/landing-pages";
+import { getPublishedLandingPageBySlug } from "@/lib/repositories/landing-pages";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { sanitizeLpHtml } from "@/lib/sanitize";
-import { generateLpCss, isValidHexColor } from "@/lib/ai/lp-design-system";
-import { LpContactForm } from "@/features/lp/components/lp-contact-form";
-
-/**
- * LP保存時に別列として保存されたデザイン設定からCSSを組み立てる。
- * これはアプリ自身が生成する信頼できる文字列であり、AI/ユーザー制御下の
- * html_content とは別に（サニタイザーを経由せず）配信する
- * （docs/audit/05_SECURITY_FINDINGS.md L-2 の修正）。
- * 列が未設定（旧データ・自由編集で作成されたLP）の場合は何も返さない。
- */
-function buildTrustedLpCss(lp: PublicLandingPage): string | null {
-  const { designStyleName, designColorPrimary, designColorBg, designColorAccent } = lp;
-  if (!designStyleName || !designColorPrimary || !designColorBg || !designColorAccent) {
-    return null;
-  }
-  if (![designColorPrimary, designColorBg, designColorAccent].every(isValidHexColor)) {
-    return null;
-  }
-  return generateLpCss(
-    { primary: designColorPrimary, bg: designColorBg, accent: designColorAccent },
-    designStyleName,
-  );
-}
+import { LpRenderer } from "@/features/lp/components/lp-renderer";
 
 interface Props {
   params: { slug: string };
@@ -46,20 +20,22 @@ interface LpMeta {
   lineAddUrl: string | null;
 }
 
-/** 閲覧数をインクリメント（fire-and-forget） */
+/**
+ * 閲覧数をインクリメント（fire-and-forget）。
+ *
+ * 以前は SELECT してから +1 を UPDATE していたため、同時アクセスで
+ * カウントが落ちていた（lost update）。PVは登録数の分母なので、
+ * 落ちるとCVRが実際より高く出て、出稿の判断を誤らせる。
+ * 0023 で定義した関数でDB側の1文として加算する。
+ */
 async function incrementViews(lpId: string) {
   try {
     const admin = createAdminClient();
-    const { data } = await admin
-      .from("landing_pages")
-      .select("views")
-      .eq("id", lpId)
-      .maybeSingle();
-    const current = ((data as Record<string, unknown> | null)?.views as number) ?? 0;
-    await admin
-      .from("landing_pages")
-      .update({ views: current + 1 })
-      .eq("id", lpId);
+    const { error } = await admin.rpc("increment_lp_views", { lp_id: lpId });
+    if (error) {
+      // 未適用環境などで関数が無い場合。ページ表示は続ける。
+      console.warn(`[LP] PV加算に失敗 (lp ${lpId}): ${error.message}`);
+    }
   } catch {
     // 閲覧カウント失敗はページ表示に影響させない
   }
@@ -119,76 +95,14 @@ export default async function PublicLpPage({ params }: Props) {
     incrementViews(lp.id),
   ]);
 
-  const isPaid = !!product;
-  const trustedCss = buildTrustedLpCss(lp);
-
   return (
-    <div className="min-h-screen bg-white">
-      {/* AIデザインシステムのCSS。html_content（サニタイズ対象）とは別に保存された
-          design_* 列から生成する、アプリ自身が所有する信頼できるスタイルシート。
-          CSSテキストなのでHTMLインジェクションの懸念はなく dangerouslySetInnerHTML は不要。 */}
-      {trustedCss && <style>{trustedCss}</style>}
-      <div className="max-w-3xl mx-auto px-4 py-12">
-
-        {/* LPコンテンツ（HTML） */}
-        {lp.htmlContent ? (
-          <div
-            className="prose prose-lg max-w-none mb-16"
-            dangerouslySetInnerHTML={{ __html: sanitizeLpHtml(lp.htmlContent) }}
-          />
-        ) : (
-          <div className="text-center py-20 text-gray-400 mb-16">
-            <p className="text-lg font-semibold text-gray-700">{lp.title}</p>
-            <p className="text-sm mt-2">コンテンツが設定されていません</p>
-          </div>
-        )}
-
-        {/* LINE 友だち追加ボタン */}
-        {lineAddUrl && (
-          <div className="mb-8 flex justify-center">
-            <a
-              href={lineAddUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 rounded-full bg-[#06C755] px-8 py-3.5 text-white font-bold text-base shadow-md hover:bg-[#05b04c] transition-colors"
-            >
-              <svg viewBox="0 0 24 24" className="h-6 w-6 fill-current" aria-hidden="true">
-                <path d="M12 2C6.48 2 2 5.92 2 10.72c0 3.21 1.77 6.04 4.47 7.74-.09.52-.56 2.93-.59 3.1 0 0-.01.11.06.16.07.04.15.02.15.02.19-.03 2.2-1.45 3.09-2.04.71.1 1.44.16 2.2.16C17.52 19.86 22 15.93 22 10.72S17.52 2 12 2z"/>
-              </svg>
-              LINE を友だち追加する
-            </a>
-          </div>
-        )}
-
-        {/* 価格カード（有料商品の場合のみ） */}
-        {isPaid && product && (
-          <div className="mb-6 rounded-2xl border-2 border-primary/30 bg-primary/5 px-6 py-5 text-center">
-            <p className="text-xs font-semibold uppercase tracking-wide text-primary/70 mb-1">
-              {product.name}
-            </p>
-            <p className="text-4xl font-bold text-primary">
-              ¥{product.price.toLocaleString()}
-              <span className="text-base font-normal text-muted-foreground ml-1">（税込）</span>
-            </p>
-            <p className="mt-2 text-xs text-muted-foreground">
-              下のフォームにご入力いただくと、Stripe の決済画面に移動します。
-            </p>
-          </div>
-        )}
-
-        {/* お問い合わせ / 購入フォーム */}
-        <div className="rounded-2xl border border-gray-200 bg-gray-50 px-6 py-8 shadow-sm">
-          <h2 className="text-xl font-bold text-center mb-2">
-            {isPaid ? "ご購入手続き" : "お問い合わせ・ご登録"}
-          </h2>
-          <p className="text-sm text-gray-500 text-center mb-6">
-            {isPaid
-              ? "以下にご入力のうえ「今すぐ購入する」をクリックしてください。"
-              : "以下のフォームにご入力のうえ送信してください。"}
-          </p>
-          <LpContactForm lpId={lp.id} isPaid={isPaid} />
-        </div>
-      </div>
-    </div>
+    <LpRenderer
+      lpId={lp.id}
+      title={lp.title}
+      htmlContent={lp.htmlContent ?? null}
+      design={lp}
+      product={product}
+      lineAddUrl={lineAddUrl}
+    />
   );
 }

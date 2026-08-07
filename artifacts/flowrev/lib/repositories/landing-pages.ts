@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { throwSafe } from "@/lib/repositories/error-utils";
+import { attributionLabel } from "@/lib/attribution";
 
 export interface LandingPageRow {
   id: string;
@@ -225,4 +226,53 @@ export async function getPublishedLpByProductId(
   if (error || !data) return null;
   const r = data as Record<string, unknown>;
   return { slug: r.slug as string, title: r.title as string };
+}
+
+export interface TrafficSourceCount {
+  /** 表示用のラベル（utm_source、無ければリファラのホスト名、それも無ければ直接アクセス） */
+  label: string;
+  count: number;
+}
+
+/**
+ * LP経由の登録を流入元ごとに数える（多い順）。
+ *
+ * PostgREST に GROUP BY が無いため行を取ってから集計する。件数が増えたときに
+ * ページ表示を巻き込まないよう上限を設ける。上限に達した場合は
+ * `truncated` を立て、画面側で「一部のみ集計」と示す。
+ * 黙って打ち切ると、実際より少ない数字を正しい合計として見せることになる。
+ *
+ * セッションクライアント（RLS適用）で引くため、他テナントの顧客は取得できない。
+ */
+const TRAFFIC_ROW_LIMIT = 5000;
+
+export async function getLpTrafficBreakdown(
+  landingPageId: string,
+): Promise<{ sources: TrafficSourceCount[]; total: number; truncated: boolean }> {
+  const supabase = createClient();
+  const { data, error } = await supabase
+    .from("customers")
+    .select("utm_source, referrer")
+    .eq("landing_page_id", landingPageId)
+    .limit(TRAFFIC_ROW_LIMIT);
+
+  if (error) throwSafe("流入元の集計に失敗しました", error);
+
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const label = attributionLabel(
+      (r.utm_source as string) ?? null,
+      (r.referrer as string) ?? null,
+    );
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+
+  return {
+    sources: [...counts.entries()]
+      .map(([label, count]) => ({ label, count }))
+      .sort((a, b) => b.count - a.count),
+    total: rows.length,
+    truncated: rows.length >= TRAFFIC_ROW_LIMIT,
+  };
 }

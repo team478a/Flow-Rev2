@@ -6,6 +6,7 @@ import { getStripeClient } from "@/lib/stripe/client";
 import { createPurchase } from "@/lib/repositories/purchases";
 import { inviteCustomerWithTenant } from "@/lib/repositories/customer-onboarding";
 import { getAuthLinkOrigin } from "@/lib/app-origin";
+import { parseAttribution, attributionColumns } from "@/lib/attribution";
 import Stripe from "stripe";
 
 const bodySchema = z.object({
@@ -13,6 +14,9 @@ const bodySchema = z.object({
   email: z.string().email("有効なメールアドレスを入力してください。"),
   name: z.string().trim().max(100).optional(),
   phone: z.string().trim().max(20).optional(),
+  // 流入元。公開ページ由来なので中身は信用せず、parseAttribution 側で
+  // 長さと制御文字を落とす。ここでは形だけ通す。
+  attribution: z.record(z.unknown()).optional(),
 });
 
 export async function POST(req: NextRequest) {
@@ -30,6 +34,7 @@ export async function POST(req: NextRequest) {
   }
 
   const { lpId, email, name, phone } = parsed.data;
+  const attribution = parseAttribution(parsed.data.attribution);
   const admin = createAdminClient();
 
   // LP を取得（slug / product_id / テナント情報）
@@ -61,6 +66,11 @@ export async function POST(req: NextRequest) {
         client_id: clientId,
         white_label_id: whiteLabelId,
         source: "lp",
+        // 流入元は登録の瞬間にしか存在せず、保存しなければ遡って取得できない。
+        // 既存顧客の再登録では ignoreDuplicates により更新されないため、
+        // 初回接触の流入元がそのまま残る（first-touch）。
+        ...attributionColumns(attribution),
+        landing_page_id: lpId,
         status: "active",
         tags: [],
         created_at: new Date().toISOString(),
