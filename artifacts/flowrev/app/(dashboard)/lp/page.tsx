@@ -7,6 +7,7 @@ import { requireClientOwner } from "@/features/wl/guard";
 import { getClientPlanFeatures } from "@/lib/features/client-features";
 import { hasFeature } from "@/lib/features/plan-features";
 import { FeatureDisabledMessage } from "@/features/dashboard/components/feature-gate";
+import { CopyLpUrlButton } from "@/features/lp/components/copy-lp-url-button";
 
 export const dynamic = "force-dynamic";
 
@@ -177,9 +178,14 @@ export default async function LpListPage() {
                   {STATUS_LABEL[lp.status] ?? lp.status}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mb-4 font-mono">
-                /p/{lp.slug}
-              </p>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <p className="truncate font-mono text-xs text-muted-foreground">
+                  /p/{lp.slug}
+                </p>
+                {lp.status === "published" && (
+                  <CopyLpUrlButton path={`/p/${lp.slug}`} />
+                )}
+              </div>
               <ConversionBar views={lp.views} conversions={lp.conversions} />
             </Link>
           ))}
