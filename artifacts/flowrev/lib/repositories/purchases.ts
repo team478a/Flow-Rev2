@@ -85,6 +85,34 @@ export async function hasPaidPurchase(
   return !!data;
 }
 
+/**
+ * 指定顧客が購入済み（paid）の商品IDを列挙する。
+ *
+ * コース一覧の表示可否は商品単位で決まるため、コースごとに問い合わせると
+ * N+1になる。一覧を描く前に一度だけ引いて集合として使う。
+ *
+ * `client_id` も条件に入れる。`customer_id` は本来クライアントに閉じているが、
+ * 権限判定の入力を1つの条件だけに依存させない（多層防御）。
+ */
+export async function listPurchasedProductIds(
+  customerId: string,
+  clientId: string,
+): Promise<string[]> {
+  const admin = createAdminClient();
+  const { data, error } = await admin
+    .from("purchases")
+    .select("product_id")
+    .eq("customer_id", customerId)
+    .eq("client_id", clientId)
+    .eq("payment_status", "paid");
+
+  if (error) throwSafe("購入商品の取得に失敗しました", error);
+
+  return (data ?? [])
+    .map((r) => (r as Record<string, unknown>).product_id as string | null)
+    .filter((id): id is string => Boolean(id));
+}
+
 /** 指定顧客が特定プロダクトの paid 購入を持っているか確認する */
 export async function hasPurchasedProduct(
   customerId: string,

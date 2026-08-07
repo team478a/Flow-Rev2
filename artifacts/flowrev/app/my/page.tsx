@@ -8,8 +8,8 @@ import {
   getCustomerIdByUserId,
   getCompletedCountsByCourse,
 } from "@/lib/repositories/progress";
-import { hasPaidPurchase } from "@/lib/repositories/purchases";
-import { getStripeSettingsMasked } from "@/lib/repositories/stripe-settings";
+import { listPurchasedProductIds } from "@/lib/repositories/purchases";
+import { filterAccessibleCourses } from "@/lib/entitlements/course-access";
 import { Badge } from "@/components/ui/badge";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +29,12 @@ export default async function MyPage({ searchParams }: Props) {
     );
   }
 
-  const [courses, customerId, stripeSettings] = await Promise.all([
+  const [publishedCourses, customerId] = await Promise.all([
     listPublishedCourses(session.clientId).catch(softFail("コース一覧", [])),
     getCustomerIdByUserId(session.userId),
-    getStripeSettingsMasked(session.clientId).catch(softFail("Stripe設定", null)),
   ]);
 
-  if (courses.length === 0) {
+  if (publishedCourses.length === 0) {
     // 「コースが未作成」と「アプリが見ているテナント／DBが想定と違う」は
     // 画面上まったく同じに見える。突き合わせに必要なIDだけ残す
     // （どちらもUUIDで、個人情報は含まない）。
@@ -44,23 +43,26 @@ export default async function MyPage({ searchParams }: Props) {
     );
   }
 
+  // 購入済み商品を一度だけ引いて、コースごとの判定に使う。
+  // 失敗時は空（購入なし扱い）のまま。支払い済みの顧客を通すより締める方が
+  // 安全だが、無言だと「支払ったのに見られない」問い合わせの原因が追えない。
+  const purchasedProductIds = customerId
+    ? await listPurchasedProductIds(customerId, session.clientId).catch(
+        softFail("購入済み商品の取得", [] as string[]),
+      )
+    : [];
+
+  const courses = filterAccessibleCourses(publishedCourses, purchasedProductIds);
+
   const completedCounts = customerId
     ? await getCompletedCountsByCourse(customerId).catch(
         () => new Map<string, number>(),
       )
     : new Map<string, number>();
 
-  // Stripe が有効かつ顧客が customerId を持つ場合のみ購入チェック
-  const stripeEnabled = !!(stripeSettings?.hasSecretKey);
-  const isPaid =
-    stripeEnabled && customerId
-      ? await hasPaidPurchase(customerId, session.clientId).catch(
-          // 失敗時は false（購入なし扱い）のまま。支払い済みの顧客を通すより
-          // 締める方が安全だが、無言だと「支払ったのに見られない」問い合わせの
-          // 原因が追えないので記録する。
-          softFail("購入状態の判定", false),
-        )
-      : true; // Stripe 未設定なら無料アクセス
+  // 公開コースはあるが、購入していないので何も見えない状態。
+  // 「コースが1件も無い」とは案内すべき内容が違う。
+  const hiddenByPurchase = publishedCourses.length > 0 && courses.length === 0;
 
   const paymentSuccess = searchParams.payment === "success";
 
@@ -89,17 +91,14 @@ export default async function MyPage({ searchParams }: Props) {
       <section className="flex flex-col gap-4">
         <h2 className="text-lg font-semibold">受講できるコース</h2>
 
-        {/* Stripe 有効かつ未購入の場合 */}
-        {stripeEnabled && !isPaid && (
-          <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-            コースへのアクセスには購入が必要です。LP ページから商品をお申し込みください。
-          </div>
-        )}
-
         {courses.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-center text-muted-foreground">
             <BookOpen className="h-10 w-10 mb-3 opacity-30" />
-            <p className="text-sm">現在受講できるコースはありません。</p>
+            <p className="text-sm">
+              {hiddenByPurchase
+                ? "受講できるコースはまだありません。商品をご購入いただくと、こちらに表示されます。"
+                : "現在受講できるコースはありません。"}
+            </p>
           </div>
         ) : (
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -107,21 +106,9 @@ export default async function MyPage({ searchParams }: Props) {
               const total = course.lessonCount ?? 0;
               const done = completedCounts.get(course.id) ?? 0;
               const pct = total > 0 ? Math.round((done / total) * 100) : 0;
-              const locked = stripeEnabled && !isPaid;
 
               const card = (
-                <div
-                  className={`flex flex-col gap-3 rounded-lg border bg-card p-4 transition-colors ${
-                    locked
-                      ? "opacity-60 cursor-not-allowed"
-                      : "hover:bg-accent/50 cursor-pointer"
-                  }`}
-                >
-                  {locked && (
-                    <span className="text-xs font-medium text-amber-700 bg-amber-100 rounded px-2 py-0.5 self-start">
-                      🔒 購入が必要
-                    </span>
-                  )}
+                <div className="flex flex-col gap-3 rounded-lg border bg-card p-4 transition-colors hover:bg-accent/50 cursor-pointer">
                   <p className="font-medium leading-snug line-clamp-2">{course.title}</p>
                   {course.description && (
                     <p className="text-xs text-muted-foreground line-clamp-2">
@@ -130,7 +117,7 @@ export default async function MyPage({ searchParams }: Props) {
                   )}
                   <div className="flex items-center justify-between mt-auto pt-2">
                     <p className="text-xs text-muted-foreground">{total} レッスン</p>
-                    {!locked && total > 0 && (
+                    {total > 0 && (
                       <Badge
                         variant={pct === 100 ? "default" : "secondary"}
                         className="text-xs"
@@ -139,7 +126,7 @@ export default async function MyPage({ searchParams }: Props) {
                       </Badge>
                     )}
                   </div>
-                  {!locked && total > 0 && (
+                  {total > 0 && (
                     <div className="h-1.5 w-full rounded-full bg-muted overflow-hidden">
                       <div
                         className="h-full bg-primary rounded-full transition-all"
@@ -150,9 +137,7 @@ export default async function MyPage({ searchParams }: Props) {
                 </div>
               );
 
-              return locked ? (
-                <div key={course.id}>{card}</div>
-              ) : (
+              return (
                 <Link key={course.id} href={`/my/courses/${course.id}`}>
                   {card}
                 </Link>
